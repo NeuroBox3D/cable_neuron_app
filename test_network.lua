@@ -113,23 +113,13 @@ VMD:add_channel(HH)
 syn_handler = NETISynapseHandler()
 syn_handler:set_presyn_subset("PreSynapse")
 syn_handler:set_vmdisc(VMD)
+syn_handler:set_activation_timing(
+	0.1,	-- average start time of synaptical activity in ms
+	10,		-- average duration of activity in ms
+	1.0,	-- deviation of start time in ms
+	0.5,	-- deviation of duration in ms
+	6e-4)	-- peak conductivity 
 VMD:set_synapse_handler(syn_handler)
-
---[[
-sd = SynapseDistributor(
-dom, "grid_out.ugx", 
-0.5, 				--density, i.e. number of synapses relative to the number of edges
-1,					--average start time of synaptical activity in ms
-1,					--average duration of activity in ms
-0.1, 				--deviation of start time in ms
-0.5)				--deviation of duration in ms
-
-sd:place_synapses_uniform(2)
-sd:log_synapses_coords("coords_timings.txt")
---syn_list = sd:get_synapses_list()
---sd:print_status(0)
---]]
-
 
 
 -- domain discretization
@@ -209,7 +199,7 @@ Interpolate(5e-5, u, "ca")
 -- write start solution
 if (generateVTKoutput) then 
 	out = VTKOutput()
-	out:print(fileName .."Solvung", u, 0, time)
+	out:print(fileName .."vtk/Solvung", u, 0, time)
 end
 
 -- store grid function in vector of  old solutions
@@ -218,7 +208,7 @@ solTimeSeries = SolutionTimeSeries()
 solTimeSeries:push(uOld, time)
 
 for step = 1,nSteps do
-	print("++++++ TIMESTEP " .. step .. " BEGIN ++++++")
+	print("++++++ POINT IN TIME " .. math.floor((time+dt)/dt+0.5)*dt .. " BEGIN ++++++")
 	
 	-- setup time Disc for old solutions and timestep
 	timeDisc:prepare_step_elem(solTimeSeries, dt)
@@ -230,7 +220,7 @@ for step = 1,nSteps do
 	if newtonSolver:apply(u) == false then
 		print ("Newton solver apply failed at step "..step..".");
 		if (generateVTKoutput) then 
-			out:write_time_pvd(fileName .."Solvung", u);
+			out:write_time_pvd(fileName .."vtk/Solvung", u);
 		end
 		exit();
 	end 
@@ -249,11 +239,11 @@ for step = 1,nSteps do
 	VecScaleAssign(oldestSol, 1.0, u)
 	solTimeSeries:push_discard_oldest(oldestSol, time)
 
-	print("++++++ TIMESTEP " .. step .. "  END ++++++");
+	print("++++++ POINT IN TIME " .. math.floor((time)/dt+0.5)*dt .. "  END ++++++");
 end
 
 -- end timeseries, produce gathering file
 if (generateVTKoutput) then
-	out:write_time_pvd(fileName .."Solvung", u)
+	out:write_time_pvd(fileName .."vtk/Solvung", u)
 end
 
