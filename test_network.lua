@@ -91,13 +91,14 @@ approxSpace:init_surfaces();
 approxSpace:init_top_surface();
 approxSpace:print_layout_statistic()
 approxSpace:print_statistic()
+OrderCuthillMcKee(approxSpace, true);
 
 ----------------------
 -- setup elem discs	--
 ----------------------
 
 -- cable equation
-VMD = VMDisc("axon, dend, soma", approxSpace)
+VMD = VMDisc("axon, dend, soma")
 --VMD:set_diameter(Diameter)
 --VMD:set_diff_coeffs({diff_k, diff_na, diff_ca})
 --VMD:set_spec_cap(spec_cap)
@@ -115,16 +116,23 @@ syn_handler:set_presyn_subset("PreSynapse")
 syn_handler:set_vmdisc(VMD)
 syn_handler:set_activation_timing(
 	0.1,	-- average start time of synaptical activity in ms
-	10,		-- average duration of activity in ms
+	5,		-- average duration of activity in ms (10)
 	1.0,	-- deviation of start time in ms
 	0.5,	-- deviation of duration in ms
-	6e-4)	-- peak conductivity 
+	1.2e-3)	-- peak conductivity (6e-4)
 VMD:set_synapse_handler(syn_handler)
 
+-- treat unknowns on synapse subset
+diri = DirichletBoundary()
+diri:add(0.0, "v", "Exp2Syn")
+diri:add(0.0, "k", "Exp2Syn")
+diri:add(0.0, "na", "Exp2Syn")
+diri:add(0.0, "ca", "Exp2Syn")
 
 -- domain discretization
 domainDisc = DomainDiscretization(approxSpace)
 domainDisc:add(VMD)
+domainDisc:add(diri)
 
 -- time discretization
 timeDisc = ThetaTimeStep(domainDisc)
@@ -160,7 +168,7 @@ gmg:set_num_postsmooth(3)
 
 -- linear solver --
 linConvCheck = ConvCheck()
-linConvCheck:set_maximum_steps(0200)
+linConvCheck:set_maximum_steps(2000)
 linConvCheck:set_minimum_defect(1e-50)
 linConvCheck:set_reduction(1e-04)
 linConvCheck:set_verbose(false)
@@ -212,6 +220,9 @@ for step = 1,nSteps do
 	
 	-- setup time Disc for old solutions and timestep
 	timeDisc:prepare_step_elem(solTimeSeries, dt)
+	
+	-- update presynaptic Vm values (must be done AFTER prep_step_elem)
+	syn_handler:update_presyn()
 
 	-- prepare Newton solver
 	newtonSolver:prepare(u)
@@ -230,7 +241,7 @@ for step = 1,nSteps do
 	
 	-- vtk output
 	if (generateVTKoutput) then 
-		out:print(fileName .."Solvung", u, step, time)
+		out:print(fileName .."vtk/Solvung", u, step, time)
 	end
 	
 	
