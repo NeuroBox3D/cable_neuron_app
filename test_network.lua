@@ -10,11 +10,11 @@ SetOutputProfileStats(false)
 ug_load_script("ug_util.lua")
 
 -- choice of grid
-gridName = util.GetParam("-grid", "testNetwork.ugx")
+gridName = util.GetParam("-grid", "test.ugx")
 
 -- dimension
 ugxfi = UGXFileInfo()
-ugxfi:parse_file("/Users/mbreit/Developing/ug4/trunk/bin/"..gridName)
+ugxfi:parse_file("/Users/pgottmann/Documents/workspace/ug4/trunk/apps/cable/"..gridName)
 dim = ugxfi:physical_grid_dimension(0)
 print("Detected dimension "..dim.." in ugx file.\n")
 
@@ -71,7 +71,7 @@ ac = 1e-6
 ----------------------------------
 
 -- Create, Load, Refine and Distribute Domain
-neededSubsets = {"axon", "dend", "soma"}
+neededSubsets = {"Axon", "Dendrite", "Soma"}
 dom = util.CreateAndDistributeDomain(gridName, numRefs, numPreRefs, neededSubsets, "metis")
 
 --print("Saving parallel grid layout")
@@ -98,7 +98,7 @@ OrderCuthillMcKee(approxSpace, true);
 ----------------------
 
 -- cable equation
-VMD = VMDisc("axon, dend, soma")
+VMD = VMDisc("Axon, Dendrite, Soma")
 --VMD:set_diameter(Diameter)
 --VMD:set_diff_coeffs({diff_k, diff_na, diff_ca})
 --VMD:set_spec_cap(spec_cap)
@@ -106,7 +106,7 @@ VMD = VMDisc("axon, dend, soma")
 --VMD:set_influx_ac(Flux_ac)
 
 -- Hodgkin and Huxley channels
-HH = ChannelHH("v", "axon")
+HH = ChannelHH("v", "Axon")
 VMD:add_channel(HH)
 --HH = ChannelHHNernst("v, k, na", "axon")
 
@@ -119,15 +119,16 @@ syn_handler:set_activation_timing(
 	5,		-- average duration of activity in ms (10)
 	1.0,	-- deviation of start time in ms
 	0.5,	-- deviation of duration in ms
-	1.2e-3)	-- peak conductivity (6e-4)
+	1.2e-12)	-- peak conductivity (6e-4)
 VMD:set_synapse_handler(syn_handler)
 
 -- treat unknowns on synapse subset
 diri = DirichletBoundary()
-diri:add(0.0, "v", "Exp2Syn")
-diri:add(0.0, "k", "Exp2Syn")
-diri:add(0.0, "na", "Exp2Syn")
-diri:add(0.0, "ca", "Exp2Syn")
+diri:add(0.0, "v", "Exp2Synapses")
+diri:add(0.0, "k", "Exp2Synapses")
+diri:add(0.0, "na", "Exp2Synapses")
+diri:add(0.0, "ca", "Exp2Synapses")
+
 
 -- domain discretization
 domainDisc = DomainDiscretization(approxSpace)
