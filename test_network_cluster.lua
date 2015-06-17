@@ -75,7 +75,7 @@ neededSubsets = {"Axon", "Dendrite", "Soma"}
 dom = util.CreateAndDistributeDomain(gridName, numRefs, numPreRefs, neededSubsets, "metis")
 
 --print("Saving parallel grid layout")
---SaveParallelGridLayout(dom:grid(), "parallel_grid_layout_p"..ProcRank()..".ugx", 1e-5)
+SaveParallelGridLayout(dom:grid(), "parallel_grid_layout_p"..ProcRank()..".ugx", 1e-5)
 
 -- create Approximation Space
 --print("Create ApproximationSpace needs to be somewhere else")
@@ -208,7 +208,7 @@ Interpolate(5e-5, u, "ca")
 -- write start solution
 if (generateVTKoutput) then 
 	out = VTKOutput()
-	out:print(fileName .."vtk/Solvung", u, 0, time)
+	out:print(fileName, u, 0, time)
 end
 
 -- store grid function in vector of  old solutions
@@ -232,7 +232,7 @@ for step = 1,nSteps do
 	if newtonSolver:apply(u) == false then
 		print ("Newton solver apply failed at step "..step..".");
 		if (generateVTKoutput) then 
-			out:write_time_pvd(fileName .."vtk/Solvung", u);
+			out:write_time_pvd(fileName, u);
 		end
 		exit();
 	end 
@@ -242,7 +242,7 @@ for step = 1,nSteps do
 	
 	-- vtk output
 	if (generateVTKoutput) then 
-		out:print(fileName .."vtk/Solvung", u, step, time)
+		out:print(fileName, u, step, time)
 	end
 	
 	
@@ -256,6 +256,6 @@ end
 
 -- end timeseries, produce gathering file
 if (generateVTKoutput) then
-	out:write_time_pvd(fileName .."vtk/Solvung", u)
+	out:write_time_pvd(fileName, u)
 end
 
