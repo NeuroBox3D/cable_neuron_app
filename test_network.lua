@@ -55,16 +55,13 @@ spec_res = 1.0e6	-- in mV ms m / C = 10^-6 Ohm m
 Diameter = 1.0e-6	-- in m
 
 -- reversal potentials
-ena = 63.5129		-- in mV
-ek  = -74.1266		-- in mV
+ena = 50.0	--63.5129		-- in mV
+ek  = -77.0	--74.1266		-- in mV
 
 -- diffusion coefficients
 diff_k 	= 1.0e-12	-- in m^2/ms
 diff_na	= 1.0e-12	-- in m^2/ms
 diff_ca	= 2.2e-13	-- in m^2/ms
-
--- accuracy for gating params
-ac = 1e-6
 
 ----------------------------------
 -- setup approximation space	--
