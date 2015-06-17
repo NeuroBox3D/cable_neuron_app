@@ -119,7 +119,7 @@ syn_handler:set_activation_timing(
 	5,		-- average duration of activity in ms (10)
 	1.0,	-- deviation of start time in ms
 	0.5,	-- deviation of duration in ms
-	1.2e-12)	-- peak conductivity (6e-4)
+	1.2e-3)	-- peak conductivity (6e-4)
 VMD:set_synapse_handler(syn_handler)
 
 -- treat unknowns on synapse subset
