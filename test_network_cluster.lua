@@ -26,7 +26,7 @@ AssertPluginsLoaded({"SynapseHandler","HH_Kabelnew"})
 numPreRefs	= util.GetParamNumber("-numPreRefs",	0)
 numRefs		= util.GetParamNumber("-numRefs",		0)
 dt			= util.GetParamNumber("-dt",			0.01) -- in ms
-endTime		= util.GetParamNumber("-endTime",		100.0) -- in ms
+endTime		= util.GetParamNumber("-endTime",		10.0) -- in ms
 nSteps 		= util.GetParamNumber("-nSteps",		endTime/dt)
 
 -- vtk output?
@@ -34,7 +34,7 @@ generateVTKoutput	= util.HasParamOption("-vtk")
 
 -- file handling
 fileName = util.GetParam("-outName", "Solvung")
-fileName = fileName.."/"
+--fileName = fileName.."/"
 
 
 --------------------------
