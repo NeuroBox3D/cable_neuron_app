@@ -10,11 +10,11 @@ SetOutputProfileStats(false)
 ug_load_script("ug_util.lua")
 
 -- choice of grid
-gridName = util.GetParam("-grid", "test.ugx")
+gridName = util.GetParam("-grid", "testNetwork.ugx")
 
 -- dimension
 ugxfi = UGXFileInfo()
-ugxfi:parse_file("/Users/pgottmann/Documents/workspace/ug4/trunk/apps/cable/"..gridName)
+ugxfi:parse_file(gridName)
 dim = ugxfi:physical_grid_dimension(0)
 print("Detected dimension "..dim.." in ugx file.\n")
 
@@ -52,7 +52,7 @@ spec_cap = 1.0e-5	-- in C/mV/m^2 = 10^3 F/m^2
 spec_res = 1.0e6	-- in mV ms m / C = 10^-6 Ohm m
 
 -- diameter
-Diameter = 1.0e-6	-- in m
+diameter = 1.0e-6	-- in m
 
 -- reversal potentials
 ena = 50.0	--63.5129		-- in mV
@@ -68,7 +68,7 @@ diff_ca	= 2.2e-13	-- in m^2/ms
 ----------------------------------
 
 -- Create, Load, Refine and Distribute Domain
-neededSubsets = {"Axon", "Dendrite", "Soma"}
+neededSubsets = {"axon", "dend", "soma"}
 dom = util.CreateAndDistributeDomain(gridName, numRefs, numPreRefs, neededSubsets, "metis")
 
 --print("Saving parallel grid layout")
@@ -95,17 +95,24 @@ OrderCuthillMcKee(approxSpace, true);
 ----------------------
 
 -- cable equation
-VMD = VMDisc("Axon, Dendrite, Soma")
---VMD:set_diameter(Diameter)
+VMD = VMDisc("axon, dend, soma")
+--VMD:set_diameter(diameter)
 --VMD:set_diff_coeffs({diff_k, diff_na, diff_ca})
 --VMD:set_spec_cap(spec_cap)
 --VMD:set_spec_res(spec_res)
 --VMD:set_influx_ac(Flux_ac)
 
 -- Hodgkin and Huxley channels
-HH = ChannelHH("v", "Axon")
+HH = ChannelHHNernst("v, k, na", "axon")
 VMD:add_channel(HH)
 --HH = ChannelHHNernst("v, k, na", "axon")
+
+-- leakage
+leakAxon = ChannelLeak("v", "axon")
+leakAxon:set_rev_pot(-54.4)
+leakDend = ChannelLeak("v", "dend")
+VMD:add_channel(leakAxon)
+VMD:add_channel(leakDend)
 
 -- synapses
 syn_handler = NETISynapseHandler()
@@ -121,10 +128,10 @@ VMD:set_synapse_handler(syn_handler)
 
 -- treat unknowns on synapse subset
 diri = DirichletBoundary()
-diri:add(0.0, "v", "Exp2Synapses")
-diri:add(0.0, "k", "Exp2Synapses")
-diri:add(0.0, "na", "Exp2Synapses")
-diri:add(0.0, "ca", "Exp2Synapses")
+diri:add(0.0, "v", "Exp2Syn")
+diri:add(0.0, "k", "Exp2Syn")
+diri:add(0.0, "na", "Exp2Syn")
+diri:add(0.0, "ca", "Exp2Syn")
 
 
 -- domain discretization
@@ -168,7 +175,7 @@ gmg:set_num_postsmooth(3)
 linConvCheck = ConvCheck()
 linConvCheck:set_maximum_steps(2000)
 linConvCheck:set_minimum_defect(1e-50)
-linConvCheck:set_reduction(1e-04)
+linConvCheck:set_reduction(1e-08)
 linConvCheck:set_verbose(false)
 
 bicgstabSolver = BiCGStab()
@@ -197,7 +204,7 @@ time = 0.0
 -- init solution
 u = GridFunction(approxSpace)
 u:set(0.0)
-Interpolate(-63.8167, u, "v")
+Interpolate(-65, u, "v")
 Interpolate(54.4, u, "k");
 Interpolate(10.0, u, "na");
 Interpolate(5e-5, u, "ca")
@@ -217,10 +224,7 @@ for step = 1,nSteps do
 	print("++++++ POINT IN TIME " .. math.floor((time+dt)/dt+0.5)*dt .. " BEGIN ++++++")
 	
 	-- setup time Disc for old solutions and timestep
-	timeDisc:prepare_step_elem(solTimeSeries, dt)
-	
-	-- update presynaptic Vm values (must be done AFTER prep_step_elem)
-	syn_handler:update_presyn()
+	timeDisc:prepare_step(solTimeSeries, dt)
 
 	-- prepare Newton solver
 	newtonSolver:prepare(u)
@@ -241,7 +245,6 @@ for step = 1,nSteps do
 	if (generateVTKoutput) then 
 		out:print(fileName .."vtk/Solvung", u, step, time)
 	end
-	
 	
 	-- updte time series (reuse memory)
 	oldestSol = solTimeSeries:oldest()
