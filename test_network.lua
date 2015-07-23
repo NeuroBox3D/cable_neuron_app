@@ -68,7 +68,7 @@ diff_ca	= 2.2e-13	-- in m^2/ms
 ----------------------------------
 
 -- Create, Load, Refine and Distribute Domain
-neededSubsets = {"Axon", "Dendrite", "Soma"}
+neededSubsets = {"axon", "dend", "soma"}
 dom = util.CreateAndDistributeDomain(gridName, numRefs, numPreRefs, neededSubsets, "metis")
 
 --print("Saving parallel grid layout")
@@ -95,7 +95,7 @@ OrderCuthillMcKee(approxSpace, true);
 ----------------------
 
 -- cable equation
-VMD = VMDisc("Axon, Dendrite, Soma")
+VMD = VMDisc("axon, dend, soma")
 --VMD:set_diameter(diameter)
 --VMD:set_diff_coeffs({diff_k, diff_na, diff_ca})
 --VMD:set_spec_cap(spec_cap)
@@ -103,16 +103,16 @@ VMD = VMDisc("Axon, Dendrite, Soma")
 --VMD:set_influx_ac(Flux_ac)
 
 -- Hodgkin and Huxley channels
-HH = ChannelHHNernst("v, k, na", "Axon")
+HH = ChannelHHNernst("v, k, na", "axon")
 VMD:add_channel(HH)
---HH = ChannelHHNernst("v, k, na", "Axon")
+--HH = ChannelHHNernst("v, k, na", "axon")
 
 -- leakage
-leakAxon = ChannelLeak("v", "Axon")
+leakAxon = ChannelLeak("v", "axon")
 leakAxon:set_rev_pot(-54.4)
-leakDendrite = ChannelLeak("v", "Dendrite")
+leakDend = ChannelLeak("v", "dend")
 VMD:add_channel(leakAxon)
-VMD:add_channel(leakDendrite)
+VMD:add_channel(leakDend)
 
 -- synapses
 syn_handler = NETISynapseHandler()
@@ -128,16 +128,16 @@ VMD:set_synapse_handler(syn_handler)
 
 -- treat unknowns on synapse subset
 diri = DirichletBoundary()
-diri:add(0.0, "v", "PostSynapseEdges")
-diri:add(0.0, "k", "PostSynapseEdges")
-diri:add(0.0, "na", "PostSynapseEdges")
-diri:add(0.0, "ca", "PostSynapseEdges")
+diri:add(0.0, "v", "Exp2Syn")
+diri:add(0.0, "k", "Exp2Syn")
+diri:add(0.0, "na", "Exp2Syn")
+diri:add(0.0, "ca", "Exp2Syn")
 
 
 -- domain discretization
 domainDisc = DomainDiscretization(approxSpace)
 domainDisc:add(VMD)
---domainDisc:add(diri)
+domainDisc:add(diri)
 
 -- time discretization
 timeDisc = ThetaTimeStep(domainDisc)
