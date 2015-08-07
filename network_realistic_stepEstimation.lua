@@ -4,9 +4,6 @@
 -- activating synapses and transmission synapses.	--
 ------------------------------------------------------
 
--- for profiler output
-SetOutputProfileStats(false)
-
 ug_load_script("ug_util.lua")
 ug_load_script("util/load_balancing_util.lua")
 
@@ -30,10 +27,20 @@ dt			= util.GetParamNumber("-dt",			0.01) -- in ms
 endTime		= util.GetParamNumber("-endTime",		100.0) -- in ms
 nSteps 		= util.GetParamNumber("-nSteps",		endTime/dt)
 pstep		= util.GetParamNumber("-pstep",			dt,		"plotting interval")
+imbFactor	= util.GetParamNumber("-imb",			1.05,	"imbalance factor")
 
+-- specify "-verbose" to output linear solver convergence
+verbose	= util.HasParamOption("-verbose")
+
+-- hierarchical distribution?
+hDistr		= util.HasParamOption("-hDistr")
 
 -- vtk output?
 generateVTKoutput	= util.HasParamOption("-vtk")
+
+-- profiling?
+doProfiling			= util.HasParamOption("-profile")
+SetOutputProfileStats(doProfiling)
 
 -- file handling
 fileName = util.GetParam("-outName", "Solvung")
@@ -97,17 +104,32 @@ temp = 37.0
 -- setup approximation space	--
 ----------------------------------
 -- create, load, refine and distribute domain
---[[
+
 write(">> Loading, distributing and refining domain ...")
 
 neededSubsets = {"Axon", "Dendrite", "Soma"}
 dom = util.CreateDomain(gridName, numPreRefs, neededSubsets)
 
 balancer.partitioner = "parmetis"
-balancer.firstDistLvl = -1
-balancer.redistProcs = 64
-balancer.parallelElementThreshold = 24
-balancer.maxLvlsWithoutRedist = 0
+
+-- balancer.firstDistLvl = -1 will cause immediate distribution to all procs if redistSteps == 0,
+-- but will cause first distribution to occur on level redistSteps otherwise!
+-- 0 will distribute to firstDistProcs on (grid-)level 0 and then each proc
+-- will redistribute to redistProcs on levels i*redistStep (i=1,2,...)
+-- AND ALL THIS ONLY if staticProcHierarchy is set to true!
+
+if hDistr == true then
+	balancer.firstDistLvl 		= 0
+	balancer.redistSteps 		= 1
+	balancer.firstDistProcs		= 256
+	balancer.redistProcs		= 256
+else
+	balancer.firstDistLvl		= -1
+	balancer.redistSteps		= 0
+end
+
+balancer.imbalanceFactor		= imbFactor
+balancer.staticProcHierarchy	= true
 balancer.ParseParameters()
 balancer.PrintParameters()
 
@@ -117,16 +139,13 @@ balancer.RefineAndRebalanceDomain(dom, numRefs, loadBalancer)
 
 print(dom:domain_info():to_string())
 
-if load_balancer ~= nil then
+if loadBalancer ~= nil then
+	print("Edge cut on base level: "..balancer.defaultPartitioner:edge_cut_on_lvl(0))
+	loadBalancer:estimate_distribution_quality()
 	loadBalancer:print_quality_records()
 end
 
 write(">> done\n")
---]]
----[[
-neededSubsets = {"Axon", "Dendrite", "Soma"}
-dom = util.CreateAndDistributeDomain(gridName, numRefs, numPreRefs, neededSubsets, "metis")
---]]
 
 --print("Saving parallel grid layout")
 --SaveParallelGridLayout(dom:grid(), "parallel_grid_layout_p"..ProcRank()..".ugx", 1e-5)
@@ -211,15 +230,6 @@ syn_handler:set_activation_timing(
 	1.2e-3)	-- peak conductivity in units of uS (6e-4)
 VMD:set_synapse_handler(syn_handler)
 
---[[
--- treat unknowns on synapse subset
-diri = DirichletBoundary()
-diri:add(0.0, "v", "Exp2Syn")
-diri:add(0.0, "k", "Exp2Syn")
-diri:add(0.0, "na", "Exp2Syn")
-diri:add(0.0, "ca", "Exp2Syn")
---]]
-
 -- domain discretization
 domainDisc = DomainDiscretization(approxSpace)
 domainDisc:add(VMD)
@@ -231,6 +241,7 @@ timeDisc:set_theta(1.0)
 
 -- create instationary operator
 op = AssembledOperator(timeDisc)
+linOp = AssembledLinearOperator(timeDisc)
 op:init()
 
 
@@ -258,37 +269,24 @@ gmg:set_num_postsmooth(3)
 
 
 -- linear solver --
-linConvCheck = ConvCheck()
-linConvCheck:set_maximum_steps(2000)
-linConvCheck:set_minimum_defect(1e-50)
-linConvCheck:set_reduction(1e-08)
-linConvCheck:set_verbose(false)
+linConvCheck = CompositeConvCheck3dCPU1(approxSpace, 20, 2e-26, 1e-08)
+linConvCheck:set_component_check("v", 1e-21, 1e-12)
+linConvCheck:set_verbose(verbose)
 
 cgSolver = CG()
 cgSolver:set_preconditioner(ILU())
 cgSolver:set_convergence_check(linConvCheck)
 --cgSolver:set_debug(dbgWriter)
 
--- non-linear solver --
-newtonConvCheck = CompositeConvCheck3dCPU1(approxSpace, 20, 2e-26, 1e-08)
-newtonConvCheck:set_component_check("v", 1e-21, 1e-12)
-newtonConvCheck:set_verbose(true)
-
-newtonSolver = NewtonSolver()
-newtonSolver:set_linear_solver(cgSolver)
-newtonSolver:set_convergence_check(newtonConvCheck)
---newtonSolver:set_debug(dbgWriter)
-
-
 ----------------------
 -- time stepping	--
 ----------------------
-newtonSolver:init(op)
 
 time = 0.0
 
 -- init solution
 u = GridFunction(approxSpace)
+b = GridFunction(approxSpace)
 u:set(0.0)
 Interpolate(v_eq, u, "v")
 Interpolate(k_in, u, "k");
@@ -298,7 +296,8 @@ Interpolate(ca_in, u, "ca")
 -- write start solution
 if (generateVTKoutput) then 
 	out = VTKOutput()
-	out:print(fileName .."vtk/Solvung", u, 0, time)
+	--out:print(fileName .."vtk/Solvung", u, 0, time)
+	out:print_subset(fileName .."vtk/somatic_signals", u, 2, 0, time)
 end
 
 -- store grid function in vector of  old solutions
@@ -347,17 +346,15 @@ while endTime-time > 0.001*curr_dt do
 		timeDisc:prepare_step(solTimeSeries, curr_dt)
 	end
 
-	-- prepare Newton solver
-	newtonSolver:prepare(u)
+	-- assemble linear problem
+	if AssembleLinearOperatorRhsAndSolution(linOp, u, b) == false then 
+		print("Could not assemble operator"); exit(); 
+	end
 		
-	-- apply Newton solver
-	if newtonSolver:apply(u) == false then
-		print ("Newton solver apply failed at point in time "..time..".");
-		if (generateVTKoutput) then 
-			out:write_time_pvd(fileName .."vtk/Solvung", u);
-		end
-		exit();
-	end 
+	-- apply linear solver
+	if ApplyLinearSolver(linOp, u, b, cgSolver) == false then
+		print("Could not apply linear solver.");
+	end
 	
 	-- update to new time
 	time = solTimeSeries:time(0) + curr_dt
@@ -365,7 +362,8 @@ while endTime-time > 0.001*curr_dt do
 	-- vtk output
 	if (generateVTKoutput) then
 		if math.abs(time/pstep - math.floor(time/pstep+0.5)) < 1e-5 then 
-			out:print(fileName .."vtk/Solvung", u, math.floor(time/pstep+0.5), time)
+			--out:print(fileName .."vtk/Solvung", u, math.floor(time/pstep+0.5), time)
+			out:print_subset(fileName .."vtk/somatic_signals", u, 2, math.floor(time/pstep+0.5), time)
 		end
 	end
 	
@@ -382,6 +380,11 @@ end
 
 -- end timeseries, produce gathering file
 if (generateVTKoutput) then
-	out:write_time_pvd(fileName .."vtk/Solvung", u)
+	--out:write_time_pvd(fileName .."vtk/Solvung", u)
+	out:write_time_pvd(fileName .."vtk/somatic_signals", u)
+end
+
+if doProfiling then
+	WriteProfileData(fileName .."pd.pdxml")
 end
 
