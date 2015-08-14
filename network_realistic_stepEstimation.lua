@@ -35,6 +35,9 @@ verbose	= util.HasParamOption("-verbose")
 -- hierarchical distribution?
 hDistr		= util.HasParamOption("-hDistr")
 
+-- vertical interfaces?
+bVertIntf	= util.HasParamOption("-vIntf")
+
 -- vtk output?
 generateVTKoutput	= util.HasParamOption("-vtk")
 
@@ -135,15 +138,17 @@ balancer.PrintParameters()
 
 -- in parallel environments: use a load balancer to distribute the grid
 loadBalancer = balancer.CreateLoadBalancer(dom)
-balancer.RefineAndRebalanceDomain(dom, numRefs, loadBalancer)
-
-print(dom:domain_info():to_string())
-
 if loadBalancer ~= nil then
+	loadBalancer:enable_vertical_interface_creation(bVertIntf)
+	balancer.RefineAndRebalanceDomain(dom, numRefs, loadBalancer)
+
 	print("Edge cut on base level: "..balancer.defaultPartitioner:edge_cut_on_lvl(0))
 	loadBalancer:estimate_distribution_quality()
 	loadBalancer:print_quality_records()
 end
+
+print(dom:domain_info():to_string())
+
 
 write(">> done\n")
 
@@ -164,7 +169,7 @@ approxSpace:init_surfaces();
 approxSpace:init_top_surface();
 approxSpace:print_layout_statistic()
 approxSpace:print_statistic()
-OrderCuthillMcKee(approxSpace, true);
+order_cuthillmckee(approxSpace);
 
 ----------------------
 -- setup elem discs	--
@@ -233,17 +238,19 @@ VMD:set_synapse_handler(syn_handler)
 -- domain discretization
 domainDisc = DomainDiscretization(approxSpace)
 domainDisc:add(VMD)
---domainDisc:add(diri)
+
+assTuner = domainDisc:ass_tuner()
+
+-- speed up assembling
+cableAssTuner = CableAssTuner(domainDisc, approxSpace)
+cableAssTuner:remove_ghosts_from_assembling_iterator()
 
 -- time discretization
 timeDisc = ThetaTimeStep(domainDisc)
 timeDisc:set_theta(1.0)
 
 -- create instationary operator
-op = AssembledOperator(timeDisc)
 linOp = AssembledLinearOperator(timeDisc)
-op:init()
-
 
 ------------------
 -- solver setup	--
@@ -252,29 +259,14 @@ op:init()
 dbgWriter = GridFunctionDebugWriter(approxSpace)
 dbgWriter:set_vtk_output(true)
 
-
--- GMG --
-gmg = GeometricMultiGrid(approxSpace)
-gmg:set_discretization(domainDisc)
-
-gmg:set_base_solver(LU())
-gmg:set_gathered_base_solver_if_ambiguous(true)
-
-gmg:set_smoother(ILU())
-gmg:set_cycle_type(1)
-gmg:set_num_presmooth(3)
-gmg:set_num_postsmooth(3)
-
---gmg:set_debug(dbgWriter)
-
-
 -- linear solver --
 linConvCheck = CompositeConvCheck3dCPU1(approxSpace, 20, 2e-26, 1e-08)
 linConvCheck:set_component_check("v", 1e-21, 1e-12)
 linConvCheck:set_verbose(verbose)
 
+ilu = ILU()
 cgSolver = CG()
-cgSolver:set_preconditioner(ILU())
+cgSolver:set_preconditioner(ilu)
 cgSolver:set_convergence_check(linConvCheck)
 --cgSolver:set_debug(dbgWriter)
 
@@ -342,16 +334,22 @@ while endTime-time > 0.001*curr_dt do
 	print("++++++ POINT IN TIME " .. math.floor((time+curr_dt)/curr_dt+0.5)*curr_dt .. " BEGIN ++++++")
 	
 	-- prepare again with new time step size
-	if dtChanged == true then 
+	if dtChanged == true then
 		timeDisc:prepare_step(solTimeSeries, curr_dt)
 	end
 
 	-- assemble linear problem
+	matrixIsConst = time ~= 0.0 and dtChanged == false
+	assTuner:set_matrix_is_const(matrixIsConst)
 	if AssembleLinearOperatorRhsAndSolution(linOp, u, b) == false then 
 		print("Could not assemble operator"); exit(); 
 	end
-		
+	
+	-- synchronize (for profiling)
+	PclDebugBarrierAll()
+	
 	-- apply linear solver
+	ilu:set_disable_preprocessing(matrixIsConst)
 	if ApplyLinearSolver(linOp, u, b, cgSolver) == false then
 		print("Could not apply linear solver.");
 	end
@@ -376,6 +374,9 @@ while endTime-time > 0.001*curr_dt do
 	cb_counter[lv] = cb_counter[lv] + 1
 
 	print("++++++ POINT IN TIME " .. math.floor((time)/curr_dt+0.5)*curr_dt .. "  END ++++++")
+	
+	-- synchronize (for profiling)
+	PclDebugBarrierAll()
 end
 
 -- end timeseries, produce gathering file
