@@ -3,7 +3,7 @@
 -- activating synapses and transmission synapses.			--
 --------------------------------------------------------------
 
-
+print("scrypt start")
 -- for profiler output
 SetOutputProfileStats(false)
 
@@ -19,22 +19,25 @@ if not cell == "12-L3pyr" or not cell == "31o_pyr" then
 	exit("Cell not specified correctly. Type '12-L3pyr' or '31o_pyr'.")
 end
 
-
+print("cell specs works")
 --------------------------------------------------------------------------------
 -- Synapse distributions via plugin by Lukas Reinhardt
 --------------------------------------------------------------------------------
-num_synapses = util.GetParamNumber("-nSyn", 170)
+num_synapses = util.GetParamNumber("-nSyn", 140)
 if cell == "12-L3pyr" then
-	sd = SynapseDistributor("../grids/13-L3pyr-77.CNG.ugx", "../grids/13-L3pyr-77.CNG_syn.ugx", true)
+	print("first")
+	sd = SynapseDistributor("grids/13-L3pyr-77.CNG.ugx", "../apps/cable/Ca_dyms/grids/13-L3pyr-77.CNG_syn.ugx", true)
 	sd:place_synapses({0.0, 0.0, 0.5, 0.5}, num_synapses)
 else
-	sd = SynapseDistributor("../grids/31o_pyramidal19aFI.CNG_diams.ugx", "../grids/31o_pyramidal19aFI.CNG_diams_syn.ugx", true)
+	print("second")
+	sd = SynapseDistributor("grids/31o_pyramidal19aFI.CNG_diams.ugx", "../apps/cable/Ca_dyms/grids/31o_pyramidal19aFI.CNG_diams_syn.ugx", true)
 	sd:place_synapses({0.0, 1.0, 0.0}, num_synapses)
 end
 
 sd:print_status()
 sd:export_grid()
 
+print("syns setted")
 
 --------------------------------------------------------------------------------
 -- Synapse degeneration
@@ -75,16 +78,16 @@ end
 --gridName = util.GetParam("-grid", "grids/13-L3pyr-77.CNG.ugx")
 
 if cell == "12-L3pyr" then
-	gridName = util.GetParam("-grid", "grids/13-L3pyr-77.CNG_syn.ugx")
+	gridName = util.GetParam("-grid", "13-L3pyr-77.CNG_syn.ugx")
 else
-	gridName = util.GetParam("-grid", "grids/31o_pyramidal19aFI.CNG_diams_syn.ugx")
+	gridName = util.GetParam("-grid", "31o_pyramidal19aFI.CNG_diams_syn.ugx")
 end
 
-
+print(gridName);
 
 -- dimension
 ugxfi = UGXFileInfo()
-ugxfi:parse_file("../" .. gridName)
+ugxfi:parse_file("/Users/pgottmann/Documents/workspace/UG4/trunk/apps/cable/Ca_dyms/grids/"..gridName)
 dim = ugxfi:physical_grid_dimension(0)
 print("Detected dimension "..dim.." in ugx file.\n")
 --dim = 3
@@ -97,9 +100,9 @@ AssertPluginsLoaded({"SynapseDistributor", "SynapseHandler","HH_Kabelnew"})
 numPreRefs	= util.GetParamNumber("-numPreRefs",	0)
 numRefs		= util.GetParamNumber("-numRefs",		0)
 dt			= util.GetParamNumber("-dt",			0.01) -- in ms
-endTime		= util.GetParamNumber("-endTime",	  130.0) -- in ms
+endTime		= util.GetParamNumber("-endTime",	  10000.0) -- in ms
 nSteps 		= util.GetParamNumber("-nSteps",		endTime/dt)
-pstep		= util.GetParamNumber("-pstep",			dt,		"plotting interval")
+pstep		= util.GetParamNumber("-pstep",			0.1,		"plotting interval")
 
 print(" chosen parameters:")
 print("    numRefs    = " .. numRefs)
@@ -107,16 +110,16 @@ print("    numPreRefs = " .. numPreRefs)
 print("    grid       = " .. gridName)
 
 -- Synapse activity parameters
-avg_start = util.GetParamNumber("-avgStart"	,  50.0)
+avg_start = util.GetParamNumber("-avgStart"	,  30.0)
 avg_dur = util.GetParamNumber(	"-avgDur"	,   2.5)
-dev_start = util.GetParamNumber("-devStart"	,  45.0)
+dev_start = util.GetParamNumber("-devStart"	,  15.0)
 dev_dur = util.GetParamNumber(	"-devDur"	,   0.1)
 
 -- vtk output?
 generateVTKoutput	= util.HasParamOption("-vtk")
 
 -- file handling
-filename = util.GetParam("-outName", "sol")
+filename = util.GetParam("-outName", "sol_apical_dend")
 
 
 --------------------------
@@ -264,12 +267,13 @@ else
 end
 HHdend:set_conductances(g_k_de, g_na_de)
 
-Cadend = ca_converted_allNernst_UG("v, ca", "dend")
+Cadendsoma = ca_converted_allNernst_UG("v, ca", "dend, soma, apical_dend")
+Cadendsoma:setgbar(0.5e-6)
 
 VMD:add_channel(HHaxon)
 VMD:add_channel(HHsoma)
 VMD:add_channel(HHdend)
-VMD:add_channel(Cadend)
+VMD:add_channel(Cadendsoma)
 
 
 
@@ -437,6 +441,8 @@ lv = 0
 cb_counter = {}
 cb_counter[lv] = 0
 
+
+
 while endTime-time > 0.001*curr_dt do
 		-- setup time Disc for old solutions and timestep
 	timeDisc:prepare_step(solTimeSeries, curr_dt)
@@ -465,6 +471,7 @@ while endTime-time > 0.001*curr_dt do
 	end
 	
 	print("++++++ POINT IN TIME " .. math.floor((time+curr_dt)/curr_dt+0.5)*curr_dt .. " BEGIN ++++++")
+	
 	
 	-- prepare again with new time step size
 	if dtChanged == true then 
