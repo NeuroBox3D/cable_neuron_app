@@ -119,7 +119,7 @@ dev_dur = util.GetParamNumber(	"-devDur"	,   0.1)
 generateVTKoutput	= util.HasParamOption("-vtk")
 
 -- file handling
-filename = util.GetParam("-outName", "sol_new_clearance")
+filename = util.GetParam("-outName", "sol_new_clearance_1e-3")
 
 
 --------------------------
@@ -269,16 +269,19 @@ HHdend:set_conductances(g_k_de, g_na_de)
 
 --Calcium dynamics
 Cadendsoma = ca_converted_allNernst_UG("v, ca", "dend, soma, apical_dend")
-Cadendsoma:setgbar(0.5e-6)
+Cadendsoma:setgbar(0.5e-9)
 
 CaOutNCX = Ca_NCX("v, ca", "dend, soma, apical_dend")
+CaOutNCX:set_scaling(1e-1)
 
 CaOutPMCA = Ca_PMCA("v, ca", "dend, soma, apical_dend")
+CaOutPMCA:set_scaling(1e-1)
 
 VMD:add_channel(HHaxon)
 VMD:add_channel(HHsoma)
 VMD:add_channel(HHdend)
 VMD:add_channel(Cadendsoma)
+
 VMD:add_channel(CaOutNCX)
 VMD:add_channel(CaOutPMCA)
 
@@ -407,6 +410,7 @@ cgSolver:set_convergence_check(linConvCheck)
 -- non-linear solver --
 newtonConvCheck = CompositeConvCheck3dCPU1(approxSpace, 20, 2e-26, 1e-08)
 newtonConvCheck:set_component_check("v", 1e-21, 1e-12)
+newtonConvCheck:set_component_check("ca", 1e-33, 1e-12)
 newtonConvCheck:set_verbose(true)
 
 newtonSolver = NewtonSolver()
