@@ -119,7 +119,7 @@ dev_dur = util.GetParamNumber(	"-devDur"	,   0.1)
 generateVTKoutput	= util.HasParamOption("-vtk")
 
 -- file handling
-filename = util.GetParam("-outName", "sol_apical_dend")
+filename = util.GetParam("-outName", "sol_new_clearance")
 
 
 --------------------------
@@ -267,13 +267,20 @@ else
 end
 HHdend:set_conductances(g_k_de, g_na_de)
 
+--Calcium dynamics
 Cadendsoma = ca_converted_allNernst_UG("v, ca", "dend, soma, apical_dend")
 Cadendsoma:setgbar(0.5e-6)
+
+CaOutNCX = Ca_NCX("v, ca", "dend, soma, apical_dend")
+
+CaOutPMCA = Ca_PMCA("v, ca", "dend, soma, apical_dend")
 
 VMD:add_channel(HHaxon)
 VMD:add_channel(HHsoma)
 VMD:add_channel(HHdend)
 VMD:add_channel(Cadendsoma)
+VMD:add_channel(CaOutNCX)
+VMD:add_channel(CaOutPMCA)
 
 
 
