@@ -55,16 +55,6 @@ sd:export_grid()
 --gridName = util.GetParam("-grid", "grids/13-L3pyr-77.CNG_a30synch500.ugx")
 --]]
 
---------------------------------------------------------------
--- File i/o setup for sample calcium concentration measurement
--------------------------------------------------------------- 
-measFile = "meas.txt"
-
-if ProcRank() == 0 then
-	io.open(measFile, "w")
-	measOut = assert(io.open(measFile, "a"))
-end
-
 
 --------------------------------------------------------------------------------
 -- UG4-Standard-Settings
@@ -78,7 +68,7 @@ end
 --gridName = util.GetParam("-grid", "grids/13-L3pyr-77.CNG.ugx")
 
 if cell == "12-L3pyr" then
-	gridName = util.GetParam("-grid", "13-L3pyr-77.CNG_syn.ugx")
+	gridName = util.GetParam("-grid", "../apps/cable/Ca_dyms/grids/13-L3pyr-77.CNG_syn.ugx")
 else
 	gridName = util.GetParam("-grid", "31o_pyramidal19aFI.CNG_diams_syn.ugx")
 end
@@ -86,11 +76,7 @@ end
 print(gridName);
 
 -- dimension
-ugxfi = UGXFileInfo()
-ugxfi:parse_file("/Users/pgottmann/Documents/workspace/UG4/trunk/apps/cable/Ca_dyms/grids/"..gridName)
-dim = ugxfi:physical_grid_dimension(0)
-print("Detected dimension "..dim.." in ugx file.\n")
---dim = 3
+dim = 3
 
 -- init UG
 InitUG(dim, AlgebraType("CPU", 1));
@@ -102,12 +88,14 @@ numRefs		= util.GetParamNumber("-numRefs",		0)
 dt			= util.GetParamNumber("-dt",			0.01) -- in ms
 endTime		= util.GetParamNumber("-endTime",	  10000.0) -- in ms
 nSteps 		= util.GetParamNumber("-nSteps",		endTime/dt)
-pstep		= util.GetParamNumber("-pstep",			0.1,		"plotting interval")
+pstep		= util.GetParamNumber("-pstep",			dt,		"plotting interval")
+
 
 print(" chosen parameters:")
 print("    numRefs    = " .. numRefs)
 print("    numPreRefs = " .. numPreRefs)
 print("    grid       = " .. gridName)
+print("    pstep       = " .. pstep)
 
 -- Synapse activity parameters
 avg_start = util.GetParamNumber("-avgStart"	,  30.0)
@@ -115,12 +103,25 @@ avg_dur = util.GetParamNumber(	"-avgDur"	,   2.5)
 dev_start = util.GetParamNumber("-devStart"	,  15.0)
 dev_dur = util.GetParamNumber(	"-devDur"	,   0.1)
 
+-- specify "-verbose" to output linear solver convergence
+verbose	= util.HasParamOption("-verbose")
+
 -- vtk output?
 generateVTKoutput	= util.HasParamOption("-vtk")
 
 -- file handling
 filename = util.GetParam("-outName", "sol_new_clearance_1e-3")
+filename = filename.."/"
 
+--------------------------------------------------------------
+-- File i/o setup for sample calcium concentration measurement
+-------------------------------------------------------------- 
+measFile = filename.."meas/meas.txt"
+
+if ProcRank() == 0 then
+	io.open(measFile, "w")
+	measOut = assert(io.open(measFile, "a"))
+end
 
 --------------------------
 -- biological settings	--
@@ -180,9 +181,9 @@ temp = 37.0
 -- Create, Load, Refine Domain
 --------------------------------------------------------------------------------
 if cell == "12-L3pyr" then
-	neededSubsets = {"soma", "axon", "dend", "apical_dend"}
+	neededSubsets = {"soma", "axon", "dendrite", "apical_dendrite"}
 else
-	neededSubsets = {"soma", "dend", "axon"}
+	neededSubsets = {"soma", "dendrite", "axon"}
 end
 --dom = util.CreateDomain(gridName, numRefs, neededSubsets)
 dom = util.CreateAndDistributeDomain(gridName, numRefs, numPreRefs, neededSubsets, "metis")
@@ -233,9 +234,9 @@ OrderCuthillMcKee(approxSpace, true);
 --------------------------------------------------------------------------------
 -- cable equation
 if cell == "12-L3pyr" then
-	VMD = VMDisc("soma, axon, dend, apical_dend")
+	VMD = VMDisc("soma, axon, dendrite, apical_dendrite")
 else
-	VMD = VMDisc("soma, dend, axon")
+	VMD = VMDisc("soma, dendrite, axon")
 end
 
 VMD:set_spec_cap(spec_cap)
@@ -261,30 +262,32 @@ HHaxon:set_conductances(g_k_ax, g_na_ax)
 HHsoma = ChannelHH("v", "soma")
 HHsoma:set_conductances(g_k_so, g_na_so)
 if cell == "12-L3pyr" then
-	HHdend = ChannelHH("v", "dend, apical_dend")
+	HHdend = ChannelHH("v", "dendrite, apical_dendrite")
 else
-	HHdend = ChannelHH("v", "dend")
+	HHdend = ChannelHH("v", "dendrite")
 end
 HHdend:set_conductances(g_k_de, g_na_de)
-
---Calcium dynamics
-Cadendsoma = ca_converted_allNernst_UG("v, ca", "dend, soma, apical_dend")
-Cadendsoma:setgbar(0.5e-9)
-
-CaOutNCX = Ca_NCX("v, ca", "dend, soma, apical_dend")
-CaOutNCX:set_scaling(1e-1)
-
-CaOutPMCA = Ca_PMCA("v, ca", "dend, soma, apical_dend")
-CaOutPMCA:set_scaling(1e-1)
 
 VMD:add_channel(HHaxon)
 VMD:add_channel(HHsoma)
 VMD:add_channel(HHdend)
-VMD:add_channel(Cadendsoma)
 
-VMD:add_channel(CaOutNCX)
-VMD:add_channel(CaOutPMCA)
 
+--Calcium dynamics
+vdcc = VDCC_BG_Cable("ca", "dendrite, soma, apical_dendrite")
+ncx = Ca_NCX("v, ca", "dendrite, soma, apical_dendrite")
+pmca = Ca_PMCA("v, ca", "dendrite, soma, apical_dendrite")
+caLeak = IonLeakage("", "dendrite, soma, apical_dendrite")
+caLeak:set_leaking_quantity("ca")
+leakCaConst = -3.4836065573770491e-12 +	-- single pump PMCA flux density (mol/ms/m^2)
+			  -1.0135135135135137e-12 +	-- single pump NCX flux (mol/ms//m^2)
+			  3.3017662162505882e-14
+caLeak:set_perm(leakCaConst, ca_in, ca_out, v_eq)
+
+VMD:add_channel(ncx)
+VMD:add_channel(pmca)
+VMD:add_channel(vdcc)
+VMD:add_channel(caLeak)
 
 
 -- leakage
@@ -297,9 +300,9 @@ leakSoma = ChannelLeak("v", "soma")
 leakSoma:set_cond(g_l_so*tmp_fct)
 leakSoma:set_rev_pot(-30.654022)
 if cell == "12-L3pyr" then
-	leakDend = ChannelLeak("v", "dend, apical_dend")
+	leakDend = ChannelLeak("v", "dendrite, apical_dendrite")
 else
-	leakDend = ChannelLeak("v", "dend")
+	leakDend = ChannelLeak("v", "dendrite")
 end
 leakDend:set_cond(g_l_de*tmp_fct)
 leakDend:set_rev_pot(-57.803624)
@@ -352,8 +355,8 @@ VMD:set_synapse_handler(syn_handler)
 
 domainDisc = DomainDiscretization(approxSpace)
 domainDisc:add(VMD)
---syn_handler:set_custom_diameter("soma, axon, dend, apical_dend", 1e-6)
 
+assTuner = domainDisc:ass_tuner()
 
 -------------------------------------------
 --  Setup Time Discretization
@@ -368,9 +371,7 @@ timeDisc:set_theta(1.0)
 --  Algebra
 -------------------------------------------
 -- create operator from discretization
-op = AssembledOperator(timeDisc)
-op:init()
-
+linOp = AssembledLinearOperator(timeDisc)
 
 ------------------
 -- solver setup	--
@@ -379,65 +380,37 @@ op:init()
 dbgWriter = GridFunctionDebugWriter(approxSpace)
 dbgWriter:set_vtk_output(true)
 
-
--- GMG --
-gmg = GeometricMultiGrid(approxSpace)
-gmg:set_discretization(domainDisc)
-
-gmg:set_base_solver(LU())
-gmg:set_gathered_base_solver_if_ambiguous(true)
-
-gmg:set_smoother(ILU())
-gmg:set_cycle_type(1)
-gmg:set_num_presmooth(3)
-gmg:set_num_postsmooth(3)
-
---gmg:set_debug(dbgWriter)
-
-
 -- linear solver --
-linConvCheck = ConvCheck()
-linConvCheck:set_maximum_steps(2000)
-linConvCheck:set_minimum_defect(1e-50)
-linConvCheck:set_reduction(1e-08)
-linConvCheck:set_verbose(false)
+linConvCheck = CompositeConvCheck(approxSpace, 20, 2e-26, 1e-08)
+linConvCheck:set_component_check("v", 1e-21, 1e-12)
+linConvCheck:set_verbose(verbose)
 
+ilu = ILU()
 cgSolver = CG()
-cgSolver:set_preconditioner(ILU())
+cgSolver:set_preconditioner(ilu)
 cgSolver:set_convergence_check(linConvCheck)
 --cgSolver:set_debug(dbgWriter)
-
--- non-linear solver --
-newtonConvCheck = CompositeConvCheck3dCPU1(approxSpace, 20, 2e-26, 1e-08)
-newtonConvCheck:set_component_check("v", 1e-21, 1e-12)
-newtonConvCheck:set_component_check("ca", 1e-33, 1e-12)
-newtonConvCheck:set_verbose(true)
-
-newtonSolver = NewtonSolver()
-newtonSolver:set_linear_solver(cgSolver)
-newtonSolver:set_convergence_check(newtonConvCheck)
---newtonSolver:set_debug(dbgWriter)
-
 
 ----------------------
 -- time stepping	--
 ----------------------
-newtonSolver:init(op)
 
 time = 0.0
 
 -- init solution
 u = GridFunction(approxSpace)
+b = GridFunction(approxSpace)
 u:set(0.0)
 Interpolate(v_eq, u, "v")
 Interpolate(k_in, u, "k");
 Interpolate(na_in, u, "na");
 Interpolate(ca_in, u, "ca")
 
+
 -- write start solution
 if (generateVTKoutput) then 
 	out = VTKOutput()
-	out:print(filename, u, 0, time)
+	out:print(filename.."vtk/solution", u, 0, time)
 end
 
 -- store grid function in vector of  old solutions
@@ -483,36 +456,39 @@ while endTime-time > 0.001*curr_dt do
 	
 	print("++++++ POINT IN TIME " .. math.floor((time+curr_dt)/curr_dt+0.5)*curr_dt .. " BEGIN ++++++")
 	
-	
 	-- prepare again with new time step size
 	if dtChanged == true then 
 		timeDisc:prepare_step(solTimeSeries, curr_dt)
 	end
 
-	-- prepare Newton solver
-	newtonSolver:prepare(u)
-		
-	-- apply Newton solver
-	if newtonSolver:apply(u) == false then
-		print ("Newton solver apply failed at point in time "..time..".");
-		if (generateVTKoutput) then 
-			out:write_time_pvd(filename, u);
-		end
-		exit();
-	end 
+	-- assemble linear problem
+	matrixIsConst = time ~= 0.0 and dtChanged == false
+	assTuner:set_matrix_is_const(matrixIsConst)
+	if AssembleLinearOperatorRhsAndSolution(linOp, u, b) == false then 
+		print("Could not assemble operator"); exit(); 
+	end
+	
+	-- synchronize (for profiling)
+	PclDebugBarrierAll()
+	
+	-- apply linear solver
+	ilu:set_disable_preprocessing(matrixIsConst)
+	if ApplyLinearSolver(linOp, u, b, cgSolver) == false then
+		print("Could not apply linear solver.");
+	end
 	
 	-- log time and vm in Soma
 	if ProcRank() == 0 then
 		if cell == "12-L3pyr" then
 			vm_soma  = EvaluateAtClosestVertex(MakeVec(0.0, 0.0, 0.0), 						u, "v", "soma", 		dom:subset_handler())
 			vm_axon  = EvaluateAtClosestVertex(MakeVec(-3.828e-05, -0.00013166, -2.34e-05), u, "v", "axon", 		dom:subset_handler())
-			vm_dend  = EvaluateAtClosestVertex(MakeVec(8.304e-05, -1.982e-05, -8.4e-06), 	u, "v", "dend", 		dom:subset_handler())
-			vm_aDend = EvaluateAtClosestVertex(MakeVec(-3.84e-06, 0.00018561, -3.947e-05), 	u, "v", "apical_dend", 	dom:subset_handler())
+			vm_dend  = EvaluateAtClosestVertex(MakeVec(8.304e-05, -1.982e-05, -8.4e-06), 	u, "v", "dendrite", 		dom:subset_handler())
+			vm_aDend = EvaluateAtClosestVertex(MakeVec(-3.84e-06, 0.00018561, -3.947e-05), 	u, "v", "apical_dendrite", 	dom:subset_handler())
 			measOut:write(time, "\t", vm_soma, "\t", vm_axon, "\t", vm_dend, "\t", vm_aDend, "\n")
 		else	
 			vm_soma  = EvaluateAtClosestVertex(MakeVec(6.9e-07, 3.74e-06, -2.86e-06), 		u, "v", "soma", 		dom:subset_handler())
 			vm_axon  = EvaluateAtClosestVertex(MakeVec(-4.05e-06, 6.736e-05, -1.341e-05), 	u, "v", "axon", 		dom:subset_handler())
-			vm_dend  = EvaluateAtClosestVertex(MakeVec(-4.631e-05, -0.0001252, 4.62e-06), 	u, "v", "dend", 	dom:subset_handler())
+			vm_dend  = EvaluateAtClosestVertex(MakeVec(-4.631e-05, -0.0001252, 4.62e-06), 	u, "v", "dendrite", 	dom:subset_handler())
 			measOut:write(time, "\t", vm_soma, "\t", vm_axon, "\t", vm_dend, "\t", -65, "\n")
 		end
 	end
@@ -523,7 +499,7 @@ while endTime-time > 0.001*curr_dt do
 	-- vtk output
 	if (generateVTKoutput) then
 		if math.abs(time/pstep - math.floor(time/pstep+0.5)) < 1e-5 then 
-			out:print(filename, u, math.floor(time/pstep+0.5), time)
+			out:print(filename.."vtk/solution", u, math.floor(time/pstep+0.5), time)
 		end
 	end
 	
@@ -540,7 +516,7 @@ end
 
 -- end timeseries, produce gathering file
 if (generateVTKoutput) then 
-	out:write_time_pvd(filename, u) 
+	out:write_time_pvd(filename.."vtk/solution", u) 
 end
 
 -- close measure file
