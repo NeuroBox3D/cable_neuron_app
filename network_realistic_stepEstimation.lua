@@ -11,10 +11,7 @@ ug_load_script("util/load_balancing_util.lua")
 gridName = util.GetParam("-grid", "testNetwork.ugx")
 
 -- dimension
-ugxfi = UGXFileInfo()
-ugxfi:parse_file(gridName)
-dim = ugxfi:physical_grid_dimension(0)
-print("Detected dimension "..dim.." in ugx file.\n")
+dim = 3
 
 -- init UG
 InitUG(dim, AlgebraType("CPU", 1));
@@ -28,6 +25,9 @@ endTime		= util.GetParamNumber("-endTime",		100.0) -- in ms
 nSteps 		= util.GetParamNumber("-nSteps",		endTime/dt)
 pstep		= util.GetParamNumber("-pstep",			dt,		"plotting interval")
 imbFactor	= util.GetParamNumber("-imb",			1.05,	"imbalance factor")
+
+-- with simulation of single ion concentrations?
+withIons = util.HasParamOption("-ions")
 
 -- specify "-verbose" to output linear solver convergence
 verbose	= util.HasParamOption("-verbose")
@@ -159,9 +159,11 @@ write(">> done\n")
 --print("Create ApproximationSpace needs to be somewhere else")
 approxSpace = ApproximationSpace(dom)
 approxSpace:add_fct("v", "Lagrange", 1)
-approxSpace:add_fct("k", "Lagrange", 1)
-approxSpace:add_fct("na", "Lagrange", 1)
-approxSpace:add_fct("ca", "Lagrange", 1)
+if withIons == true then
+	approxSpace:add_fct("k", "Lagrange", 1)
+	approxSpace:add_fct("na", "Lagrange", 1)
+	approxSpace:add_fct("ca", "Lagrange", 1)
+end
 
 -- gating functions for HH-Fluxes
 approxSpace:init_levels();
@@ -176,7 +178,7 @@ order_cuthillmckee(approxSpace);
 ----------------------
 
 -- cable equation
-VMD = VMDisc("Axon, Dendrite, Soma, PreSynapseEdges, PostSynapseEdges")
+VMD = VMDisc("Axon, Dendrite, Soma, PreSynapseEdges, PostSynapseEdges", withIons)
 VMD:set_spec_cap(spec_cap)
 VMD:set_spec_res(spec_res)
 
@@ -194,12 +196,17 @@ VMD:set_temperature_celsius(temp)
 
 
 -- Hodgkin and Huxley channels
---HH = ChannelHHNernst("v, k, na", "Axon")
-HHaxon = ChannelHH("v", "Axon, PreSynapseEdges")
+if withIons == true then
+	HHaxon = ChannelHHNernst("v", "Axon, PreSynapseEdges")
+	HHsoma = ChannelHHNernst("v", "Soma")
+	HHdend = ChannelHHNernst("v", "Dendrite, PostSynapseEdges")
+else
+	HHaxon = ChannelHH("v", "Axon, PreSynapseEdges")
+	HHsoma = ChannelHH("v", "Soma")
+	HHdend = ChannelHH("v", "Dendrite, PostSynapseEdges")
+end
 HHaxon:set_conductances(g_k_ax, g_na_ax)
-HHsoma = ChannelHH("v", "Soma")
 HHsoma:set_conductances(g_k_so, g_na_so)
-HHdend = ChannelHH("v", "Dendrite, PostSynapseEdges")
 HHdend:set_conductances(g_k_de, g_na_de)
 
 VMD:add_channel(HHaxon)
@@ -228,10 +235,10 @@ syn_handler = NETISynapseHandler()
 syn_handler:set_presyn_subset("PreSynapse")
 syn_handler:set_vmdisc(VMD)
 syn_handler:set_activation_timing(
-	0.1,	-- average start time of synaptical activity in ms
-	5,		-- average duration of activity in ms (10)
-	1.0,	-- deviation of start time in ms
-	0.5,	-- deviation of duration in ms
+	5.0,	-- average start time of synaptical activity in ms
+	2.5,	-- average duration of activity in ms (10)
+	2.5,	-- deviation of start time in ms
+	0.1,	-- deviation of duration in ms
 	1.2e-3)	-- peak conductivity in units of uS (6e-4)
 VMD:set_synapse_handler(syn_handler)
 
@@ -273,6 +280,9 @@ cgSolver:set_convergence_check(linConvCheck)
 ----------------------
 -- time stepping	--
 ----------------------
+if generateActivityStats then
+	syn_handler:print_synapse_statistics(2)
+end
 
 time = 0.0
 
@@ -281,9 +291,11 @@ u = GridFunction(approxSpace)
 b = GridFunction(approxSpace)
 u:set(0.0)
 Interpolate(v_eq, u, "v")
-Interpolate(k_in, u, "k");
-Interpolate(na_in, u, "na");
-Interpolate(ca_in, u, "ca")
+if withIons == true then
+	Interpolate(k_in, u, "k");
+	Interpolate(na_in, u, "na");
+	Interpolate(ca_in, u, "ca")
+end
 
 -- write start solution
 if (generateVTKoutput) then 
@@ -305,7 +317,7 @@ cb_counter = {}
 cb_counter[lv] = 0
 
 while endTime-time > 0.001*curr_dt do
-		-- setup time Disc for old solutions and timestep
+	-- setup time Disc for old solutions and timestep
 	timeDisc:prepare_step(solTimeSeries, curr_dt)
 	
 	-- reduce time step if cfl < curr_dt
