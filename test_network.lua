@@ -1,8 +1,10 @@
-------------------------------------------------------
--- This script is intended for testing purposes.	--
--- It solves the cable equation with HH channels,	--
--- activating synapses and transmission synapses.	--
-------------------------------------------------------
+----------------------------------------------------------------
+-- This script is intended for testing purposes.              --
+-- It solves the cable equation with HH channels,             --
+-- activating synapses and transmission synapses.	          --
+--                                                            --
+-- OUTDATED! Please use network_realistic_stepEstimation.lua! --
+----------------------------------------------------------------
 
 -- for profiler output
 SetOutputProfileStats(false)
