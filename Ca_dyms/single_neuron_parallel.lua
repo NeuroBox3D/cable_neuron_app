@@ -1,9 +1,14 @@
 --------------------------------------------------------------
 -- This script solves the cable equation with HH channels, 	--
--- activating synapses and transmission synapses.			--
+-- activating randomly (uniformly) distributed alpha        --
+-- synapses with randomly (normally) distributed activation --
+-- patterns on a L3 pyramidal cell.                         --
+-- It is intended to be used in a parallel setup:           --
+-- Each core will then produce its own results (embarrassing--
+-- parallelism); a global histogram file for the number of  --
+-- evoked APs will be created afterwards.
 --------------------------------------------------------------
 
-print("scrypt start")
 -- for profiler output
 SetOutputProfileStats(false)
 
@@ -19,23 +24,18 @@ if not cell == "12-L3pyr" or not cell == "31o_pyr" then
 	exit("Cell not specified correctly. Type '12-L3pyr' or '31o_pyr'.")
 end
 
-print("cell specs works")
 --------------------------------------------------------------------------------
 -- Synapse distributions via plugin by Lukas Reinhardt
 --------------------------------------------------------------------------------
 num_synapses = util.GetParamNumber("-nSyn", 140)
----[[
-if cell == "12-L3pyr" then
-	print("first")
-	sd = SynapseDistributor("grids/13-L3pyr-77.CNG.ugx", "../apps/cable/Ca_dyms/grids/13-L3pyr-77.CNG_syn.ugx", true)
-	sd:place_synapses({0.0, 0.0, 0.5, 0.5}, num_synapses)
-else
-	print("second")
-	sd = SynapseDistributor("grids/31o_pyramidal19aFI.CNG_diams.ugx", "../apps/cable/Ca_dyms/grids/31o_pyramidal19aFI.CNG_diams_syn.ugx", true)
-	sd:place_synapses({0.0, 1.0, 0.0}, num_synapses)
-end
 
-sd:print_status()
+rank = ProcRank()
+rankAsString = string.format("%02d", rank)
+
+--[[
+sd = SynapseDistributor("grids/13-L3pyr-77.CNG.ugx", "../apps/cable/Ca_dyms/grids/13-L3pyr-77.CNG_syn_p"..rankAsString..".ugx", true)
+sd:place_synapses({0.0, 0.0, 0.5, 0.5}, num_synapses)
+
 sd:export_grid()
 --]]
 --------------------------------------------------------------------------------
@@ -49,8 +49,8 @@ deg_factor = util.GetParamNumber("-degFac", 0.5)
 -- ensure correct number:
 deg_factor = deg_factor + 0.5/num_synapses
 
-sd = SynapseDistributor("../apps/cable/Ca_dyms/grids/13-L3pyr-77.CNG_syn.ugx", "../apps/cable/Ca_dyms/grids/13-L3pyr-77.CNG_syn_deg.ugx", false)
-sd:print_status()
+sd = SynapseDistributor("../apps/cable/Ca_dyms/grids/13-L3pyr-77.CNG_syn_p"..rankAsString..".ugx",
+						"../apps/cable/Ca_dyms/grids/13-L3pyr-77.CNG_syn_p"..rankAsString.."_deg.ugx", false)
 sd:degenerate_uniform(deg_factor, 2) -- first factor means: newNumber = (1-factor)*oldNumber
 sd:degenerate_uniform(deg_factor, 3) -- second param is the subset index
 sd:print_status()
@@ -62,19 +62,7 @@ sd:export_grid()
 --------------------------------------------------------------------------------
 -- UG4-Standard-Settings
 --------------------------------------------------------------------------------
-
--- choice of grid
---gridName = util.GetParam("-grid", "grids/test_cell_small_ref_1.ugx")
---gridName = util.GetParam("-grid", "grids/31o_pyramidal19aFI.CNG_with_subsets.ugx")
---gridName = util.GetParam("-grid", "grids/31o_pyramidal19aFI.CNG_with_subsets_and_diams.ugx")
---gridName = util.GetParam("-grid", "grids/31o_pyramidal19aFI.CNG_diams.ugx")
---gridName = util.GetParam("-grid", "grids/13-L3pyr-77.CNG.ugx")
-
-if cell == "12-L3pyr" then
-	gridName = util.GetParam("-grid", "../apps/cable/Ca_dyms/grids/13-L3pyr-77.CNG_syn_deg.ugx")
-else
-	gridName = util.GetParam("-grid", "31o_pyramidal19aFI.CNG_diams_syn.ugx")
-end
+gridName = util.GetParam("-grid", "../apps/cable/Ca_dyms/grids/13-L3pyr-77.CNG_syn_p"..rankAsString.."_deg.ugx")
 
 print(gridName);
 
@@ -119,18 +107,15 @@ filename = filename.."/"
 --------------------------------------------------------------
 -- File i/o setup for sample calcium concentration measurement
 -------------------------------------------------------------- 
-measFileVm = filename.."meas/measVm.txt"
-measFileCa = filename.."meas/measCa.txt"
+measFileVm = filename.."meas/measVm_p"..rankAsString..".txt"
+measFileCa = filename.."meas/measCa_p"..rankAsString..".txt"
 
-if ProcRank() == 0 then
-	measOutVm = assert(io.open(measFileVm, "a"))
-	measOutCa = assert(io.open(measFileCa, "a"))
-end
+measOutVm = assert(io.open(measFileVm, "w"))
+measOutCa = assert(io.open(measFileCa, "w"))
 
 --------------------------
 -- biological settings	--
 --------------------------
-
 -- settings are according to T. Branco
 
 -- membrane conductances (in units of C/m^2/mV/ms = 10^6 S/m^2)
@@ -184,41 +169,22 @@ temp = 37.0
 --------------------------------------------------------------------------------
 -- Create, Load, Refine Domain
 --------------------------------------------------------------------------------
-if cell == "12-L3pyr" then
-	neededSubsets = {"soma", "axon", "dendrite", "apical_dendrite"}
-else
-	neededSubsets = {"soma", "dendrite", "axon"}
+dom = Domain()
+LoadDomain(dom, gridName, rank)
+
+if numRefs > 0 then
+	local refiner = GlobalDomainRefiner(dom)
+	for i=1,numRefs do
+		TerminateAbortedRun()
+		refiner:refine()
+	end
+		
+	delete(refiner)
 end
---dom = util.CreateDomain(gridName, numRefs, neededSubsets)
-dom = util.CreateAndDistributeDomain(gridName, numRefs, numPreRefs, neededSubsets, "metis")
-
-
---------------------------------------------------------------------------------
--- Synapse distributions via plugin by Lukas Reinhardt
---------------------------------------------------------------------------------
-
-----sd = SynapseDistributor(dom, "grids/grid_out.ugx", true)
---sd:place_synapses_uniform(100)
---sd:place_synapses_uniform(num_synapses)
---sd:place_synapses_uniform(2, num_synapses)
-----sd:place_synapses({0.0, 0.0, 0.5, 0.5}, num_synapses)
---sd:set_activation_timing(avg_start, avg_dur, dev_start, dev_dur)
-----sd:print_status()
-
-
---------------------------------------------------------------------------------
--- Distribute Domain
---------------------------------------------------------------------------------
---util.DistributeDomain(dom, "metis")
-
---print("Saving parallel grid layout")
---SaveParallelGridLayout(dom:grid(), "parallel_grid_layout_p"..ProcRank()..".ugx", 1e-5)
-
 
 --------------------------------------------------------------------------------
 -- create Approximation Space
 --------------------------------------------------------------------------------
---print("Create ApproximationSpace needs to be somewhere else")
 approxSpace = ApproximationSpace(dom)
 approxSpace:add_fct("v", "Lagrange", 1)
 approxSpace:add_fct("k", "Lagrange", 1)
@@ -231,7 +197,6 @@ approxSpace:init_top_surface();
 approxSpace:print_layout_statistic()
 approxSpace:print_statistic()
 OrderCuthillMcKee(approxSpace, true);
-
 
 --------------------------------------------------------------------------------
 --VMDisc constructor creates every needed concentration out of added Channels from Channel list
@@ -318,72 +283,33 @@ VMD:add_channel(leakDend)
 
 -- synapses
 syn_handler = NETISynapseHandler()
---syn_handler:set_presyn_subset("PreSynapse")
 syn_handler:set_vmdisc(VMD)
 syn_handler:set_activation_timing(
 	avg_start,	-- average start time of synaptical activity in ms
 	avg_dur,	-- average duration of activity in ms (10)
 	dev_start,	-- deviation of start time in ms
 	dev_dur,	-- deviation of duration in ms
-	1.2e-3)		-- peak conductivity in [uS]
+	1.2e-3,		-- peak conductivity in [uS]
+	false)		-- whether to use const seed
 VMD:set_synapse_handler(syn_handler)
 
---VMD:set_synapse_distributor(sd)
 
-
-
---------------------------------------------------------------------------------
---	ELECTRODE STIMULATION SETUP
---------------------------------------------------------------------------------
-
---  INFO: coords for 31o_pyramidal19aFI.CNG_with_subsets.ugx --
-
---	ELECTRODE STIMULATION near soma: 5nA seem to inervate the pyramidal cell with uniform diameters of 1um
---VMD:set_influx(5e-12, 6.54e-05, 2.665e-05, 3.985e-05, 0.0, 40) -- current given in C/ms
-
---	!!! DO NOT USE!!! ELECTRODE STIMULATION into soma: 5nA seem to enervate the pyramidal cell with attached diameters (also causing backpropagating APs)
---VMD:set_influx(5e-12, 6.9e-06, 3.74e-05, -2.86e-05, 0.0, 40) -- current given in C/ms 
-
-
--- INFO: coords for 13-L3pyr-77.CNG.ugx --current given in C/ms --
-
---VMD:set_influx(5e-12, 3.955e-06, 1.095e-06, -3.365e-06, 1.0, 2.5) -- 1st edge soma to dend
---VMD:set_influx(0.3e-12, 3.955e-06, 1.095e-06, -3.365e-06, 0.0, 30.0) -- 1st 1st edge soma to dend
---VMD:set_influx(0.095e-12, 0.0, 0.0, 0.0, 100.0, 100.0) -- soma center vertex
---VMD:set_influx(0.2e-12, 0.0, 0.0, 0.0, 5.0, 0.5) -- soma center vertex
---VMD:set_influx(10.0e-12, 0.000139, 0.00020809, -2.037e-05, 5.0, 5.0) -- distal apical dendrite vertex v1
---VMD:set_influx(10.0e-12, -3.96e-06, 0.0002173, -5.431e-05, 5.0, 5.0) -- distal apical dendrite vertex v2
--------------------------------------------
---  Setup Domain Discretization
--------------------------------------------
 
 domainDisc = DomainDiscretization(approxSpace)
 domainDisc:add(VMD)
 
 assTuner = domainDisc:ass_tuner()
 
--------------------------------------------
---  Setup Time Discretization
--------------------------------------------
-
 -- create time discretization
 timeDisc = ThetaTimeStep(domainDisc)
 timeDisc:set_theta(1.0)
 
-
--------------------------------------------
---  Algebra
--------------------------------------------
 -- create operator from discretization
 linOp = AssembledLinearOperator(timeDisc)
 
 ------------------
 -- solver setup	--
 ------------------
--- debug writer
-dbgWriter = GridFunctionDebugWriter(approxSpace)
-dbgWriter:set_vtk_output(true)
-
 -- linear solver --
 linConvCheck = CompositeConvCheck(approxSpace, 20, 2e-26, 1e-08)
 linConvCheck:set_component_check("v", 1e-21, 1e-12)
@@ -393,7 +319,6 @@ ilu = ILU()
 cgSolver = CG()
 cgSolver:set_preconditioner(ilu)
 cgSolver:set_convergence_check(linConvCheck)
---cgSolver:set_debug(dbgWriter)
 
 ----------------------
 -- time stepping	--
@@ -425,12 +350,12 @@ solTimeSeries:push(uOld, time)
 curr_dt = dt
 dtred = 2
 
+apCount = 0
+apUp = false
+
 lv = 0
 cb_counter = {}
 cb_counter[lv] = 0
-
-
-
 while endTime-time > 0.001*curr_dt do
 		-- setup time Disc for old solutions and timestep
 	timeDisc:prepare_step(solTimeSeries, curr_dt)
@@ -481,29 +406,24 @@ while endTime-time > 0.001*curr_dt do
 		print("Could not apply linear solver.");
 	end
 	
-	-- log time and vm in Soma
-	if ProcRank() == 0 then
-		if cell == "12-L3pyr" then
-			vm_soma  = EvaluateAtClosestVertex(MakeVec(0.0, 0.0, 0.0), 						u, "v", "soma", 		dom:subset_handler())
-			vm_axon  = EvaluateAtClosestVertex(MakeVec(-3.828e-05, -0.00013166, -2.34e-05), u, "v", "axon", 		dom:subset_handler())
-			vm_dend  = EvaluateAtClosestVertex(MakeVec(8.304e-05, -1.982e-05, -8.4e-06), 	u, "v", "dendrite", 		dom:subset_handler())
-			vm_aDend = EvaluateAtClosestVertex(MakeVec(-3.84e-06, 0.00018561, -3.947e-05), 	u, "v", "apical_dendrite", 	dom:subset_handler())
-			measOutVm:write(time, "\t", vm_soma, "\t", vm_axon, "\t", vm_dend, "\t", vm_aDend, "\n")
-			ca_soma  = EvaluateAtClosestVertex(MakeVec(0.0, 0.0, 0.0), 						u, "ca", "soma", 		dom:subset_handler())
-			ca_axon  = EvaluateAtClosestVertex(MakeVec(-3.828e-05, -0.00013166, -2.34e-05), u, "ca", "axon", 		dom:subset_handler())
-			ca_dend  = EvaluateAtClosestVertex(MakeVec(8.304e-05, -1.982e-05, -8.4e-06), 	u, "ca", "dendrite", 		dom:subset_handler())
-			ca_aDend = EvaluateAtClosestVertex(MakeVec(-3.84e-06, 0.00018561, -3.947e-05), 	u, "ca", "apical_dendrite", 	dom:subset_handler())
-			measOutCa:write(time, "\t", ca_soma, "\t", ca_axon, "\t", ca_dend, "\t", ca_aDend, "\n")
-		else	
-			vm_soma  = EvaluateAtClosestVertex(MakeVec(6.9e-07, 3.74e-06, -2.86e-06), 		u, "v", "soma", 		dom:subset_handler())
-			vm_axon  = EvaluateAtClosestVertex(MakeVec(-4.05e-06, 6.736e-05, -1.341e-05), 	u, "v", "axon", 		dom:subset_handler())
-			vm_dend  = EvaluateAtClosestVertex(MakeVec(-4.631e-05, -0.0001252, 4.62e-06), 	u, "v", "dendrite", 	dom:subset_handler())
-			measOutVm:write(time, "\t", vm_soma, "\t", vm_axon, "\t", vm_dend, "\t", -65, "\n")
-			ca_soma  = EvaluateAtClosestVertex(MakeVec(6.9e-07, 3.74e-06, -2.86e-06), 		u, "ca", "soma", 		dom:subset_handler())
-			ca_axon  = EvaluateAtClosestVertex(MakeVec(-4.05e-06, 6.736e-05, -1.341e-05), 	u, "ca", "axon", 		dom:subset_handler())
-			ca_dend  = EvaluateAtClosestVertex(MakeVec(-4.631e-05, -0.0001252, 4.62e-06), 	u, "ca", "dendrite", 	dom:subset_handler())
-			measOutCa:write(time, "\t", ca_soma, "\t", ca_axon, "\t", ca_dend, "\t", -65, "\n")
-		end
+	-- log vm and calcium at soma
+	vm_soma  = EvaluateAtClosestVertex(MakeVec(0.0, 0.0, 0.0), 						u, "v", "soma", 		dom:subset_handler())
+	vm_axon  = EvaluateAtClosestVertex(MakeVec(-3.828e-05, -0.00013166, -2.34e-05), u, "v", "axon", 		dom:subset_handler())
+	vm_dend  = EvaluateAtClosestVertex(MakeVec(8.304e-05, -1.982e-05, -8.4e-06), 	u, "v", "dendrite", 		dom:subset_handler())
+	vm_aDend = EvaluateAtClosestVertex(MakeVec(-3.84e-06, 0.00018561, -3.947e-05), 	u, "v", "apical_dendrite", 	dom:subset_handler())
+	measOutVm:write(time, "\t", vm_soma, "\t", vm_axon, "\t", vm_dend, "\t", vm_aDend, "\n")
+	ca_soma  = EvaluateAtClosestVertex(MakeVec(0.0, 0.0, 0.0), 						u, "ca", "soma", 		dom:subset_handler())
+	ca_axon  = EvaluateAtClosestVertex(MakeVec(-3.828e-05, -0.00013166, -2.34e-05), u, "ca", "axon", 		dom:subset_handler())
+	ca_dend  = EvaluateAtClosestVertex(MakeVec(8.304e-05, -1.982e-05, -8.4e-06), 	u, "ca", "dendrite", 		dom:subset_handler())
+	ca_aDend = EvaluateAtClosestVertex(MakeVec(-3.84e-06, 0.00018561, -3.947e-05), 	u, "ca", "apical_dendrite", 	dom:subset_handler())
+	measOutCa:write(time, "\t", ca_soma, "\t", ca_axon, "\t", ca_dend, "\t", ca_aDend, "\n")
+	
+	-- count APs
+	if vm_soma > 0 and not apUp then
+		apCount = apCount + 1;
+		apUp = true
+	elseif vm_soma < -67 then
+		apUp = false
 	end
 	
 	-- update to new time
@@ -533,8 +453,28 @@ if (generateVTKoutput) then
 end
 
 -- close measure file
-if ProcRank() == 0 then
-	measOutVm:close()
-	measOutCa:close()
-end
+measOutVm:close()
+measOutCa:close()
 	
+-- delete geom files
+--os.remove("../apps/cable/Ca_dyms/grids/13-L3pyr-77.CNG_syn_p"..rankAsString..".ugx")
+os.remove("../apps/cable/Ca_dyms/grids/13-L3pyr-77.CNG_syn_p"..rankAsString.."_deg.ugx")
+
+
+-- histogram of AP counts
+apCountVec = {}
+for i=1,50 do
+	apCountVec[i] = 0
+end
+apCountVec[apCount+1] = 1
+
+apCountVec = ParallelVecSum(apCountVec)
+
+if rank == 0 then
+	histOut = assert(io.open(filename.."meas/apHist.txt", "w"))
+	for i=1,50 do
+		histOut:write(i-1, "\t", apCountVec[i], "\n")
+	end
+	histOut:close()
+end
+
