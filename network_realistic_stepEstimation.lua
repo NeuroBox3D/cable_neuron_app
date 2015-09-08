@@ -197,38 +197,28 @@ VMD:set_temperature_celsius(temp)
 
 -- Hodgkin and Huxley channels
 if withIons == true then
-	HHaxon = ChannelHHNernst("v", "Axon, PreSynapseEdges")
-	HHsoma = ChannelHHNernst("v", "Soma")
-	HHdend = ChannelHHNernst("v", "Dendrite, PostSynapseEdges")
+	HH = ChannelHHNernst("v", "Axon, PreSynapseEdges, Soma, Dendrite, PostSynapseEdges")
 else
-	HHaxon = ChannelHH("v", "Axon, PreSynapseEdges")
-	HHsoma = ChannelHH("v", "Soma")
-	HHdend = ChannelHH("v", "Dendrite, PostSynapseEdges")
+	HH = ChannelHH("v", "Axon, PreSynapseEdges, Soma, Dendrite, PostSynapseEdges")
 end
-HHaxon:set_conductances(g_k_ax, g_na_ax)
-HHsoma:set_conductances(g_k_so, g_na_so)
-HHdend:set_conductances(g_k_de, g_na_de)
+HH:set_conductances(g_k_ax, g_na_ax, "Axon, PreSynapseEdges")
+HH:set_conductances(g_k_so, g_na_so, "Soma")
+HH:set_conductances(g_k_de, g_na_de, "Dendrite, PostSynapseEdges")
 
-VMD:add_channel(HHaxon)
-VMD:add_channel(HHsoma)
-VMD:add_channel(HHdend)
+VMD:add_channel(HH)
 
 -- leakage
 tmp_fct = math.pow(2.3,(temp-23.0)/10.0)
 
-leakAxon = ChannelLeak("v", "Axon, PreSynapseEdges")
-leakAxon:set_cond(g_l_ax*tmp_fct)
-leakAxon:set_rev_pot(-66.148458)
-leakSoma = ChannelLeak("v", "Soma")
-leakSoma:set_cond(g_l_so*tmp_fct)
-leakSoma:set_rev_pot(-30.654022)
-leakDend = ChannelLeak("v", "Dendrite, PostSynapseEdges")
-leakDend:set_cond(g_l_de*tmp_fct)
-leakDend:set_rev_pot(-57.803624)
+leak = ChannelLeak("v", "Axon, PreSynapseEdges, Soma, Dendrite, PostSynapseEdges")
+leak:set_cond(g_l_ax*tmp_fct, "Axon, PreSynapseEdges")
+leak:set_rev_pot(-66.148458, "Axon, PreSynapseEdges")
+leak:set_cond(g_l_so*tmp_fct, "Soma")
+leak:set_rev_pot(-30.654022, "Soma")
+leak:set_cond(g_l_de*tmp_fct, "Dendrite, PostSynapseEdges")
+leak:set_rev_pot(-57.803624, "Dendrite, PostSynapseEdges")
 
-VMD:add_channel(leakAxon)
-VMD:add_channel(leakSoma)
-VMD:add_channel(leakDend)
+VMD:add_channel(leak)
 
 -- synapses
 syn_handler = NETISynapseHandler()
