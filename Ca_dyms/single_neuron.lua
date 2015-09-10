@@ -236,12 +236,15 @@ OrderCuthillMcKee(approxSpace, true);
 --------------------------------------------------------------------------------
 --VMDisc constructor creates every needed concentration out of added Channels from Channel list
 --------------------------------------------------------------------------------
--- cable equation
+
 if cell == "12-L3pyr" then
-	VMD = VMDisc("soma, axon, dendrite, apical_dendrite")
+	dendSubsets = "dendrite, apical_dendrite"
 else
-	VMD = VMDisc("soma, dendrite, axon")
+	dendSubsets = "dendrite"
 end
+
+-- cable equation
+VMD = VMDisc("soma, axon, " .. dendSubsets)
 
 VMD:set_spec_cap(spec_cap)
 VMD:set_spec_res(spec_res)
@@ -260,60 +263,55 @@ VMD:set_temperature_celsius(temp)
 
 
 -- Hodgkin and Huxley channels
---HH = ChannelHHNernst("v, k, na", "axon")
-HHaxon = ChannelHH("v", "axon")
-HHaxon:set_conductances(g_k_ax, g_na_ax)
-HHsoma = ChannelHH("v", "soma")
-HHsoma:set_conductances(g_k_so, g_na_so)
-if cell == "12-L3pyr" then
-	HHdend = ChannelHH("v", "dendrite, apical_dendrite")
-else
-	HHdend = ChannelHH("v", "dendrite")
-end
-HHdend:set_conductances(g_k_de, g_na_de)
+HH = ChannelHHNernst("v", "axon, soma, " .. dendSubsets)
+HH:set_conductances(g_k_ax, g_na_ax, "axon")
+HH:set_conductances(g_k_so, g_na_so, "soma")
+HH:set_conductances(g_k_de, g_na_de, dendSubsets)
 
-VMD:add_channel(HHaxon)
-VMD:add_channel(HHsoma)
-VMD:add_channel(HHdend)
-
+VMD:add_channel(HH)
 
 --Calcium dynamics
-vdcc = VDCC_BG_Cable("ca", "dendrite, soma, apical_dendrite")
-ncx = Ca_NCX("v, ca", "dendrite, soma, apical_dendrite")
-pmca = Ca_PMCA("v, ca", "dendrite, soma, apical_dendrite")
-caLeak = IonLeakage("", "dendrite, soma, apical_dendrite")
+vdcc = VDCC_BG_Cable("ca", "soma, " .. dendSubsets)
+ncx = Ca_NCX("ca", "soma, " .. dendSubsets)
+pmca = Ca_PMCA("ca", "soma, " .. dendSubsets)
+caLeak = IonLeakage("ca", "soma, " .. dendSubsets)
 caLeak:set_leaking_quantity("ca")
 leakCaConst = -3.4836065573770491e-12 +	-- single pump PMCA flux density (mol/ms/m^2)
 			  -1.0135135135135137e-12 +	-- single pump NCX flux (mol/ms//m^2)
 			  3.3017662162505882e-14
-caLeak:set_perm(leakCaConst, ca_in, ca_out, v_eq)
+caLeak:set_perm(leakCaConst, ca_in, ca_out, v_eq, 2)
 
 VMD:add_channel(ncx)
 VMD:add_channel(pmca)
 VMD:add_channel(vdcc)
-VMD:add_channel(caLeak)
+--VMD:add_channel(caLeak)
+
+-- K equilibration
+nak = Na_K_Pump("", "axon")
+nak:set_IMAX_P(0.0026481515257588432)
+VMD:add_channel(nak)
+
+kLeak = IonLeakage("k", "axon")
+kLeak:set_leaking_quantity("k")
+leakKConst = 0.0000000040675975261062531 +	-- HH (mol/ms/m^2)
+			 -0.00000000010983795579882983 	-- Na/K (mol/ms//m^2)
+kLeak:set_perm(leakKConst, k_in, k_out, v_eq, 1)
+
+VMD:add_channel(kLeak)
 
 
 -- leakage
 tmp_fct = math.pow(2.3,(temp-23.0)/10.0)
 
-leakAxon = ChannelLeak("v", "axon")
-leakAxon:set_cond(g_l_ax*tmp_fct)
-leakAxon:set_rev_pot(-66.148458)
-leakSoma = ChannelLeak("v", "soma")
-leakSoma:set_cond(g_l_so*tmp_fct)
-leakSoma:set_rev_pot(-30.654022)
-if cell == "12-L3pyr" then
-	leakDend = ChannelLeak("v", "dendrite, apical_dendrite")
-else
-	leakDend = ChannelLeak("v", "dendrite")
-end
-leakDend:set_cond(g_l_de*tmp_fct)
-leakDend:set_rev_pot(-57.803624)
+leak = ChannelLeak("v", "axon, soma, " .. dendSubsets)
+leak:set_cond(g_l_ax*tmp_fct, "axon")
+leak:set_rev_pot(-66.210342630746467, "axon")
+leak:set_cond(g_l_so*tmp_fct, "soma")
+leak:set_rev_pot(-30.654022, "soma")
+leak:set_cond(g_l_de*tmp_fct, dendSubsets)
+leak:set_rev_pot(-57.803624, dendSubsets)
 
-VMD:add_channel(leakAxon)
-VMD:add_channel(leakSoma)
-VMD:add_channel(leakDend)
+VMD:add_channel(leak)
 
 
 -- synapses
