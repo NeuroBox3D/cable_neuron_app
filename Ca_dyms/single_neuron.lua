@@ -303,7 +303,7 @@ VMD:add_channel(kLeak)
 --Flux: pot HH: 2.0338e-09 Subset: 0
 --Flux: sod HH: -6.05974e-10 Subset: 0
 --Flux: VM HH:0.000137764 Subset: 0
-nakso = Na_K_Pump("", "Soma")
+nakso = Na_K_Pump("", "soma")
 nakso:set_IMAX_P(0.0026481515257588432)
 VMD:add_channel(nakso)
 
@@ -314,9 +314,9 @@ VMD:add_channel(nakso)
 --Flux: pot HH: 3.0507e-10 Subset: 2
 --Flux: sod HH: -1.61593e-11 Subset: 2
 --Flux: VM HH:2.78755e-05 Subset: 2
-nakdend = Na_K_Pump("", dendSubsets)
+nakdend = Na_K_Pump("", "dendrite, apical_dendrite")
 nakdend:set_IMAX_P(0.0026481515257588432)
-VM:add_channel(nakdend)
+VMD:add_channel(nakdend)
 
 
 
