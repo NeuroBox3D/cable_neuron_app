@@ -89,7 +89,7 @@ AssertPluginsLoaded({"SynapseDistributor", "SynapseHandler","HH_Kabelnew"})
 numPreRefs	= util.GetParamNumber("-numPreRefs",	0)
 numRefs		= util.GetParamNumber("-numRefs",		0)
 dt			= util.GetParamNumber("-dt",			0.01) -- in ms
-endTime		= util.GetParamNumber("-endTime",	  0.01) -- in ms
+endTime		= util.GetParamNumber("-endTime",	  10000.0) -- in ms
 nSteps 		= util.GetParamNumber("-nSteps",		endTime/dt)
 pstep		= util.GetParamNumber("-pstep",			dt,		"plotting interval")
 
@@ -113,14 +113,14 @@ verbose	= util.HasParamOption("-verbose")
 generateVTKoutput	= util.HasParamOption("-vtk")
 
 -- file handling
-filename = util.GetParam("-outName", "sol_dyn")
-
+filename = util.GetParam("-outName", "sol_new_clearance_1e-3")
+filename = filename.."/"
 
 --------------------------------------------------------------
 -- File i/o setup for sample calcium concentration measurement
 -------------------------------------------------------------- 
-measFileVm = filename.."measVm.txt"
-measFileCa = filename.."measCa.txt"
+measFileVm = filename.."meas/measVm.txt"
+measFileCa = filename.."meas/measCa.txt"
 
 if ProcRank() == 0 then
 	measOutVm = assert(io.open(measFileVm, "a"))
@@ -236,15 +236,12 @@ OrderCuthillMcKee(approxSpace, true);
 --------------------------------------------------------------------------------
 --VMDisc constructor creates every needed concentration out of added Channels from Channel list
 --------------------------------------------------------------------------------
-
-if cell == "12-L3pyr" then
-	dendSubsets = "dendrite, apical_dendrite"
-else
-	dendSubsets = "dendrite"
-end
-
 -- cable equation
-VMD = VMDisc("soma, axon, " .. dendSubsets)
+if cell == "12-L3pyr" then
+	VMD = VMDisc("soma, axon, dendrite, apical_dendrite")
+else
+	VMD = VMDisc("soma, dendrite, axon")
+end
 
 VMD:set_spec_cap(spec_cap)
 VMD:set_spec_res(spec_res)
@@ -263,76 +260,60 @@ VMD:set_temperature_celsius(temp)
 
 
 -- Hodgkin and Huxley channels
-HH = ChannelHHNernst("v", "axon, soma, " .. dendSubsets)
-HH:set_conductances(g_k_ax, g_na_ax, "axon")
-HH:set_conductances(g_k_so, g_na_so, "soma")
-HH:set_conductances(g_k_de, g_na_de, dendSubsets)
+--HH = ChannelHHNernst("v, k, na", "axon")
+HHaxon = ChannelHH("v", "axon")
+HHaxon:set_conductances(g_k_ax, g_na_ax)
+HHsoma = ChannelHH("v", "soma")
+HHsoma:set_conductances(g_k_so, g_na_so)
+if cell == "12-L3pyr" then
+	HHdend = ChannelHH("v", "dendrite, apical_dendrite")
+else
+	HHdend = ChannelHH("v", "dendrite")
+end
+HHdend:set_conductances(g_k_de, g_na_de)
 
-VMD:add_channel(HH)
+VMD:add_channel(HHaxon)
+VMD:add_channel(HHsoma)
+VMD:add_channel(HHdend)
+
 
 --Calcium dynamics
-vdcc = VDCC_BG_Cable("ca", "soma, " .. dendSubsets)
-ncx = Ca_NCX("ca", "soma, " .. dendSubsets)
-pmca = Ca_PMCA("ca", "soma, " .. dendSubsets)
-caLeak = IonLeakage("ca", "soma, " .. dendSubsets)
+vdcc = VDCC_BG_Cable("ca", "dendrite, soma, apical_dendrite")
+ncx = Ca_NCX("v, ca", "dendrite, soma, apical_dendrite")
+pmca = Ca_PMCA("v, ca", "dendrite, soma, apical_dendrite")
+caLeak = IonLeakage("", "dendrite, soma, apical_dendrite")
 caLeak:set_leaking_quantity("ca")
 leakCaConst = -3.4836065573770491e-12 +	-- single pump PMCA flux density (mol/ms/m^2)
 			  -1.0135135135135137e-12 +	-- single pump NCX flux (mol/ms//m^2)
 			  3.3017662162505882e-14
-caLeak:set_perm(leakCaConst, ca_in, ca_out, v_eq, 2)
+caLeak:set_perm(leakCaConst, ca_in, ca_out, v_eq)
 
 VMD:add_channel(ncx)
 VMD:add_channel(pmca)
 VMD:add_channel(vdcc)
---VMD:add_channel(caLeak)
-
--- K equilibration axon
-nak = Na_K_Pump("", "axon")
-nak:set_IMAX_P(0.0026481515257588432)
-VMD:add_channel(nak)
-
-kLeak = IonLeakage("k", "axon")
-kLeak:set_leaking_quantity("k")
-leakKConst = 0.0000000040675975261062531 +	-- HH (mol/ms/m^2)
-			 -0.00000000010983795579882983 	-- Na/K (mol/ms//m^2)
-kLeak:set_perm(leakKConst, k_in, k_out, v_eq, 1)
-
-VMD:add_channel(kLeak)
-
--- K equilibration soma
---Flux: pot HH: 2.0338e-09 Subset: 0
---Flux: sod HH: -6.05974e-10 Subset: 0
---Flux: VM HH:0.000137764 Subset: 0
-nakso = Na_K_Pump("", "soma")
-nakso:set_IMAX_P(0.0026481515257588432)
-VMD:add_channel(nakso)
-
--- K equilibration apical dend dend
---Flux: pot HH: 3.0507e-10 Subset: 3
---Flux: sod HH: -1.61593e-11 Subset: 3
---Flux: VM HH:2.78755e-05 Subset: 3
---Flux: pot HH: 3.0507e-10 Subset: 2
---Flux: sod HH: -1.61593e-11 Subset: 2
---Flux: VM HH:2.78755e-05 Subset: 2
-nakdend = Na_K_Pump("", "dendrite, apical_dendrite")
-nakdend:set_IMAX_P(0.0026481515257588432)
-VMD:add_channel(nakdend)
-
-
+VMD:add_channel(caLeak)
 
 
 -- leakage
 tmp_fct = math.pow(2.3,(temp-23.0)/10.0)
 
-leak = ChannelLeak("v", "axon, soma, " .. dendSubsets)
-leak:set_cond(g_l_ax*tmp_fct, "axon")
-leak:set_rev_pot(-66.210342630746467, "axon")
-leak:set_cond(g_l_so*tmp_fct, "soma")
-leak:set_rev_pot(-30.654022, "soma")
-leak:set_cond(g_l_de*tmp_fct, dendSubsets)
-leak:set_rev_pot(-57.803624, dendSubsets)
+leakAxon = ChannelLeak("v", "axon")
+leakAxon:set_cond(g_l_ax*tmp_fct)
+leakAxon:set_rev_pot(-66.148458)
+leakSoma = ChannelLeak("v", "soma")
+leakSoma:set_cond(g_l_so*tmp_fct)
+leakSoma:set_rev_pot(-30.654022)
+if cell == "12-L3pyr" then
+	leakDend = ChannelLeak("v", "dendrite, apical_dendrite")
+else
+	leakDend = ChannelLeak("v", "dendrite")
+end
+leakDend:set_cond(g_l_de*tmp_fct)
+leakDend:set_rev_pot(-57.803624)
 
-VMD:add_channel(leak)
+VMD:add_channel(leakAxon)
+VMD:add_channel(leakSoma)
+VMD:add_channel(leakDend)
 
 
 -- synapses
@@ -433,7 +414,7 @@ Interpolate(ca_in, u, "ca")
 -- write start solution
 if (generateVTKoutput) then 
 	out = VTKOutput()
-	out:print(filename, u, 0, time)
+	out:print(filename.."vtk/solution", u, 0, time)
 end
 
 -- store grid function in vector of  old solutions
@@ -531,7 +512,7 @@ while endTime-time > 0.001*curr_dt do
 	-- vtk output
 	if (generateVTKoutput) then
 		if math.abs(time/pstep - math.floor(time/pstep+0.5)) < 1e-5 then 
-			out:print(filename, u, math.floor(time/pstep+0.5), time)
+			out:print(filename.."vtk/solution", u, math.floor(time/pstep+0.5), time)
 		end
 	end
 	
@@ -548,7 +529,7 @@ end
 
 -- end timeseries, produce gathering file
 if (generateVTKoutput) then 
-	out:write_time_pvd(filename, u) 
+	out:write_time_pvd(filename.."vtk/solution", u) 
 end
 
 -- close measure file
