@@ -89,7 +89,7 @@ AssertPluginsLoaded({"SynapseDistributor", "SynapseHandler","HH_Kabelnew"})
 numPreRefs	= util.GetParamNumber("-numPreRefs",	0)
 numRefs		= util.GetParamNumber("-numRefs",		0)
 dt			= util.GetParamNumber("-dt",			0.01) -- in ms
-endTime		= util.GetParamNumber("-endTime",	  10000.0) -- in ms
+endTime		= util.GetParamNumber("-endTime",	  0.01) -- in ms
 nSteps 		= util.GetParamNumber("-nSteps",		endTime/dt)
 pstep		= util.GetParamNumber("-pstep",			dt,		"plotting interval")
 
@@ -113,14 +113,14 @@ verbose	= util.HasParamOption("-verbose")
 generateVTKoutput	= util.HasParamOption("-vtk")
 
 -- file handling
-filename = util.GetParam("-outName", "sol_new_clearance_1e-3")
-filename = filename.."/"
+filename = util.GetParam("-outName", "sol_dyn")
+
 
 --------------------------------------------------------------
 -- File i/o setup for sample calcium concentration measurement
 -------------------------------------------------------------- 
-measFileVm = filename.."meas/measVm.txt"
-measFileCa = filename.."meas/measCa.txt"
+measFileVm = filename.."measVm.txt"
+measFileCa = filename.."measCa.txt"
 
 if ProcRank() == 0 then
 	measOutVm = assert(io.open(measFileVm, "a"))
@@ -286,7 +286,7 @@ VMD:add_channel(pmca)
 VMD:add_channel(vdcc)
 --VMD:add_channel(caLeak)
 
--- K equilibration
+-- K equilibration axon
 nak = Na_K_Pump("", "axon")
 nak:set_IMAX_P(0.0026481515257588432)
 VMD:add_channel(nak)
@@ -298,6 +298,27 @@ leakKConst = 0.0000000040675975261062531 +	-- HH (mol/ms/m^2)
 kLeak:set_perm(leakKConst, k_in, k_out, v_eq, 1)
 
 VMD:add_channel(kLeak)
+
+-- K equilibration soma
+--Flux: pot HH: 2.0338e-09 Subset: 0
+--Flux: sod HH: -6.05974e-10 Subset: 0
+--Flux: VM HH:0.000137764 Subset: 0
+nakso = Na_K_Pump("", "Soma")
+nakso:set_IMAX_P(0.0026481515257588432)
+VMD:add_channel(nakso)
+
+-- K equilibration apical dend dend
+--Flux: pot HH: 3.0507e-10 Subset: 3
+--Flux: sod HH: -1.61593e-11 Subset: 3
+--Flux: VM HH:2.78755e-05 Subset: 3
+--Flux: pot HH: 3.0507e-10 Subset: 2
+--Flux: sod HH: -1.61593e-11 Subset: 2
+--Flux: VM HH:2.78755e-05 Subset: 2
+nakdend = Na_K_Pump("", dendSubsets)
+nakdend:set_IMAX_P(0.0026481515257588432)
+VM:add_channel(nakdend)
+
+
 
 
 -- leakage
@@ -412,7 +433,7 @@ Interpolate(ca_in, u, "ca")
 -- write start solution
 if (generateVTKoutput) then 
 	out = VTKOutput()
-	out:print(filename.."vtk/solution", u, 0, time)
+	out:print(filename, u, 0, time)
 end
 
 -- store grid function in vector of  old solutions
@@ -510,7 +531,7 @@ while endTime-time > 0.001*curr_dt do
 	-- vtk output
 	if (generateVTKoutput) then
 		if math.abs(time/pstep - math.floor(time/pstep+0.5)) < 1e-5 then 
-			out:print(filename.."vtk/solution", u, math.floor(time/pstep+0.5), time)
+			out:print(filename, u, math.floor(time/pstep+0.5), time)
 		end
 	end
 	
@@ -527,7 +548,7 @@ end
 
 -- end timeseries, produce gathering file
 if (generateVTKoutput) then 
-	out:write_time_pvd(filename.."vtk/solution", u) 
+	out:write_time_pvd(filename, u) 
 end
 
 -- close measure file
