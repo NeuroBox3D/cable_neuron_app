@@ -45,6 +45,9 @@ generateVTKoutput	= util.HasParamOption("-vtk")
 doProfiling			= util.HasParamOption("-profile")
 SetOutputProfileStats(doProfiling)
 
+-- whether or not subsets are distinguished by layer
+subsetsByLayer		= util.HasParamOption("-sslw")
+
 -- file handling
 fileName = util.GetParam("-outName", "Solvung")
 fileName = fileName.."/"
@@ -110,7 +113,11 @@ temp = 37.0
 
 write(">> Loading, distributing and refining domain ...")
 
-neededSubsets = {"Axon", "Dendrite", "Soma"}
+if not subsetsByLayer then
+	neededSubsets = {"Axon", "Dendrite", "Soma"}
+else
+	neededSubsets = {}
+end
 dom = util.CreateDomain(gridName, numPreRefs, neededSubsets)
 
 balancer.partitioner = "parmetis"
@@ -177,8 +184,22 @@ order_cuthillmckee(approxSpace);
 -- setup elem discs	--
 ----------------------
 
+-- collect subsets defined layer-wise
+ss_axon = ""
+ss_dend = ""
+ss_soma = ""
+if subsetsByLayer then
+	ss_axon = "AXON__L4_STELLATE, AXON__L23_PYRAMIDAL, AXON__L5A_PYRAMIDAL, AXON__L5B_PYRAMIDAL"
+	ss_dend = "DEND__L4_STELLATE, DEND__L23_PYRAMIDAL, DEND__L5A_PYRAMIDAL, DEND__L5B_PYRAMIDAL"
+	ss_soma = "SOMA__L4_STELLATE, SOMA__L23_PYRAMIDAL, SOMA__L5A_PYRAMIDAL, SOMA__L5B_PYRAMIDAL"
+else
+	ss_axon = "Axon"
+	ss_dend = "Dendrite"
+	ss_soma = "Soma"
+end
+
 -- cable equation
-VMD = VMDisc("Axon, Dendrite, Soma, PreSynapseEdges, PostSynapseEdges", withIons)
+VMD = VMDisc(ss_axon..", "..ss_dend..", "..ss_soma..", PreSynapseEdges, PostSynapseEdges", withIons)
 VMD:set_spec_cap(spec_cap)
 VMD:set_spec_res(spec_res)
 
@@ -197,26 +218,26 @@ VMD:set_temperature_celsius(temp)
 
 -- Hodgkin and Huxley channels
 if withIons == true then
-	HH = ChannelHHNernst("v", "Axon, PreSynapseEdges, Soma, Dendrite, PostSynapseEdges")
+	HH = ChannelHHNernst("v", ss_axon..", "..ss_dend..", "..ss_soma..", PreSynapseEdges, PostSynapseEdges")
 else
-	HH = ChannelHH("v", "Axon, PreSynapseEdges, Soma, Dendrite, PostSynapseEdges")
+	HH = ChannelHH("v", ss_axon..", "..ss_dend..", "..ss_soma..", PreSynapseEdges, PostSynapseEdges")
 end
-HH:set_conductances(g_k_ax, g_na_ax, "Axon, PreSynapseEdges")
-HH:set_conductances(g_k_so, g_na_so, "Soma")
-HH:set_conductances(g_k_de, g_na_de, "Dendrite, PostSynapseEdges")
+HH:set_conductances(g_k_ax, g_na_ax, ss_axon..", PreSynapseEdges")
+HH:set_conductances(g_k_so, g_na_so, ss_soma)
+HH:set_conductances(g_k_de, g_na_de, ss_dend..", PostSynapseEdges")
 
 VMD:add_channel(HH)
 
 -- leakage
 tmp_fct = math.pow(2.3,(temp-23.0)/10.0)
 
-leak = ChannelLeak("v", "Axon, PreSynapseEdges, Soma, Dendrite, PostSynapseEdges")
-leak:set_cond(g_l_ax*tmp_fct, "Axon, PreSynapseEdges")
-leak:set_rev_pot(-66.148458, "Axon, PreSynapseEdges")
-leak:set_cond(g_l_so*tmp_fct, "Soma")
-leak:set_rev_pot(-30.654022, "Soma")
-leak:set_cond(g_l_de*tmp_fct, "Dendrite, PostSynapseEdges")
-leak:set_rev_pot(-57.803624, "Dendrite, PostSynapseEdges")
+leak = ChannelLeak("v", ss_axon..", "..ss_dend..", "..ss_soma..", PreSynapseEdges, PostSynapseEdges")
+leak:set_cond(g_l_ax*tmp_fct, ss_axon..", PreSynapseEdges")
+leak:set_rev_pot(-66.148458, ss_axon..", PreSynapseEdges")
+leak:set_cond(g_l_so*tmp_fct, ss_soma)
+leak:set_rev_pot(-30.654022, ss_soma)
+leak:set_cond(g_l_de*tmp_fct, ss_dend..", PostSynapseEdges")
+leak:set_rev_pot(-57.803624, ss_dend..", PostSynapseEdges")
 
 VMD:add_channel(leak)
 
@@ -225,7 +246,7 @@ syn_handler = NETISynapseHandler()
 syn_handler:set_presyn_subset("PreSynapse")
 syn_handler:set_vmdisc(VMD)
 syn_handler:set_activation_timing(
-	5.0,	-- average start time of synaptical activity in ms
+	0.0,	-- average start time of synaptical activity in ms
 	2.5,	-- average duration of activity in ms (10)
 	2.5,	-- deviation of start time in ms
 	0.1,	-- deviation of duration in ms
@@ -291,7 +312,7 @@ end
 if (generateVTKoutput) then 
 	out = VTKOutput()
 	--out:print(fileName .."vtk/Solvung", u, 0, time)
-	out:print_subset(fileName .."vtk/somatic_signals", u, 2, 0, time)
+	out:print_subsets(fileName .."vtk/somatic_signals", u, ss_soma, 0, time)
 end
 
 -- store grid function in vector of  old solutions
@@ -363,7 +384,7 @@ while endTime-time > 0.001*curr_dt do
 	if (generateVTKoutput) then
 		if math.abs(time/pstep - math.floor(time/pstep+0.5)) < 1e-5 then 
 			--out:print(fileName .."vtk/Solvung", u, math.floor(time/pstep+0.5), time)
-			out:print_subset(fileName .."vtk/somatic_signals", u, 2, math.floor(time/pstep+0.5), time)
+			out:print_subsets(fileName .."vtk/somatic_signals", u, ss_soma, math.floor(time/pstep+0.5), time)
 		end
 	end
 	
