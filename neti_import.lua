@@ -13,4 +13,4 @@ gi = gip:getDefaultNeuronalTopologyImporter()
 -- base name
 baseName = util.GetParam("-name", "testNetwork")
 -- import
-gi:import_txt(baseName.."_secs.txt", baseName.."_connex.txt", baseName.."_synapses.txt")
+gi:import_txt(baseName.."_secs.txt", baseName.."_connex.txt", baseName.."_synapses.txt", baseName.."_identifier.txt")
