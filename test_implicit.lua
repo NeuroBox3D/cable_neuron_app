@@ -10,13 +10,10 @@ SetOutputProfileStats(false)
 ug_load_script("ug_util.lua")
 
 -- choice of grid
-gridName = util.GetParam("-grid", "../apps/synapse_distributor/grids/31o_pyramidal19aFI.CNG_with_subsets.ugx")
+gridName = util.GetParam("-grid", "../apps/cable/Ca_dyms/grids/31o_pyramidal19aFI.CNG_diams.ugx")
 
 -- dimension
-ugxfi = UGXFileInfo()
-ugxfi:parse_file("/Users/markus/Developing/ug4/trunk/bin/"..gridName)
-dim = ugxfi:physical_grid_dimension(0)
-print("Detected dimension "..dim.." in ugx file.\n")
+dim = 3
 
 -- init UG
 InitUG(dim, AlgebraType("CPU", 1));
@@ -100,7 +97,7 @@ InfluxPlacex = 6.9e-06 -- in m
 InfluxPlacey = 3.74e-05 -- in m
 InfluxPlacez = -2.86e-05
 flux_ac = 1e-5
-InfluxValue = 1e-12
+InfluxValue = 1e-14
 
 function injection3d(t, x, y, z)
 	--print("x: "..x.."y: "..y.."z: "..z.." time: "..time)
@@ -132,7 +129,7 @@ HH:set_diff_Na(diff_na)
 HH:set_diff_K(diff_k)
 
 VMD = VMDisc("dend, soma")
-VMD:set_diameter(diameter)
+--VMD:set_diameter(diameter)
 
 diri = DirichletBoundary()
 diri:add(0.0, "h", "dend, soma")
@@ -195,9 +192,9 @@ bicgstabSolver:set_convergence_check(convCheckL)
 --bicgstabSolver:set_debug(dbgWriter)
 
 newtonConvCheck = CompositeConvCheck(approxSpace, 20, 1e-15, 1e-10)
-newtonConvCheck:set_component_check("v", 5e-27, 1e-10)
+newtonConvCheck:set_component_check("v", 5e-27, 1e-08)
 newtonConvCheck:set_component_check("h,m,n", 5e-15, 1e-10)
-newtonConvCheck:set_component_check("na,k,ca", 1e-30, 1e-10)
+newtonConvCheck:set_component_check("na,k,ca", 1e-26, 1e-10)
 newtonConvCheck:set_verbose(true)
 
 newtonSolver = NewtonSolver()
@@ -226,7 +223,7 @@ print("Interpolation start values")
 -- set initial values for Na and K
 StartValue = -65.0
 Interpolate(10, u, "na", time)
-Interpolate(54.4, u, "k", time)
+Interpolate(140.0, u, "k", time)
 Interpolate(5e-5, u, "ca", time)
 Interpolate(StartValue, u, "v", time)
 
