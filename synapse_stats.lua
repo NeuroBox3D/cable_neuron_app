@@ -78,23 +78,23 @@ approxSpace:init_top_surface();
 ----------------------
 
 -- cable equation
-VMD = CableEquation("Axon, Dendrite, Soma, PreSynapseEdges, PostSynapseEdges", false)
+CE = CableEquation("Axon, Dendrite, Soma, PreSynapseEdges, PostSynapseEdges", false)
 
 -- synapses
 syn_handler = NETISynapseHandler()
 syn_handler:set_presyn_subset("PreSynapse")
-syn_handler:set_vmdisc(VMD)
+syn_handler:set_vmdisc(CE)
 syn_handler:set_activation_timing(
 	5.0,	-- average start time of synaptical activity in ms
 	2.5,	-- average duration of activity in ms (10)
 	2.5,	-- deviation of start time in ms
 	0.1,	-- deviation of duration in ms
 	1.2e-3)	-- peak conductivity in units of uS (6e-4)
-VMD:set_synapse_handler(syn_handler)
+CE:set_synapse_handler(syn_handler)
 
 -- domain discretization
 domainDisc = DomainDiscretization(approxSpace)
-domainDisc:add(VMD)
+domainDisc:add(CE)
 
 syn_handler:print_synapse_statistics(2)
 

@@ -181,21 +181,21 @@ order_cuthillmckee(approxSpace);
 ----------------------
 
 -- cable equation
-VMD = CableEquation("Axon, Dendrite, Soma, PreSynapseEdges, PostSynapseEdges", withIons)
-VMD:set_spec_cap(spec_cap)
-VMD:set_spec_res(spec_res)
+CE = CableEquation("Axon, Dendrite, Soma, PreSynapseEdges, PostSynapseEdges", withIons)
+CE:set_spec_cap(spec_cap)
+CE:set_spec_res(spec_res)
 
-VMD:set_rev_pot_k(e_k)
-VMD:set_rev_pot_na(e_na)
-VMD:set_rev_pot_ca(e_ca)
+CE:set_rev_pot_k(e_k)
+CE:set_rev_pot_na(e_na)
+CE:set_rev_pot_ca(e_ca)
 
-VMD:set_k_out(k_out)
-VMD:set_na_out(na_out)
-VMD:set_ca_out(ca_out)
+CE:set_k_out(k_out)
+CE:set_na_out(na_out)
+CE:set_ca_out(ca_out)
 
-VMD:set_diff_coeffs({diff_k, diff_na, diff_ca})
+CE:set_diff_coeffs({diff_k, diff_na, diff_ca})
 
-VMD:set_temperature_celsius(temp)
+CE:set_temperature_celsius(temp)
 
 
 -- Hodgkin and Huxley channels
@@ -208,7 +208,7 @@ HH:set_conductances(g_k_ax, g_na_ax, "Axon, PreSynapseEdges")
 HH:set_conductances(g_k_so, g_na_so, "Soma")
 HH:set_conductances(g_k_de, g_na_de, "Dendrite, PostSynapseEdges")
 
-VMD:add(HH)
+CE:add(HH)
 
 ----------------------------------------------------------------------------------------------------------
 -- Setup for Dynamic Ions
@@ -221,7 +221,7 @@ if withIons == true then
     -- Na/K Pump
     nak = Na_K_Pump("", "Axon, PreSynapseEdges")
     nak:set_IMAX_P(0.0026481515257588432)
-    VMD:add(nak)
+    CE:add(nak)
     
     -- K-Leak
     kLeak = IonLeakage("k", "Axon, PreSynapseEdges")
@@ -230,13 +230,13 @@ if withIons == true then
            -0.00000000010983795579882983  -- Na/K (mol/ms//m^2)
     kLeak:set_perm(leakKConst, k_in, k_out, v_eq, 1)
     --print("leakK: " .. leakKConst)
-    VMD:add(kLeak)
+    CE:add(kLeak)
     
 --Soma Settings------------------------------------------------------------------------------------------------ 
     -- Na/K Pump  
     nakso = Na_K_Pump("", "Soma")
     nakso:set_IMAX_P(6.05974e-10/4.57658e-06)
-    VMD:add(nakso)
+    CE:add(nakso)
     
     -- K-Leak
     kLeakso = IonLeakage("k", "Soma")
@@ -244,13 +244,13 @@ if withIons == true then
     leakKsoConst = 2.0338e-09 + -- HH (mol/ms/m^2)
            -(2.0/3.0 * 6.05974e-10)   -- Na/K (mol/ms//m^2)
     kLeakso:set_perm(leakKsoConst, k_in, k_out, v_eq, 1)
-    VMD:add(kLeakso)
+    CE:add(kLeakso)
     
 --Dendrit Settings------------------------------------------------------------------------------------------------
     -- Na/K Pump    
     nakdend = Na_K_Pump("", "Dendrite, PostSynapseEdges")
     nakdend:set_IMAX_P(1.61593e-11/4.57658e-06)
-    VMD:add(nakdend)
+    CE:add(nakdend)
     
     -- K-Leak
     kLeakdend = IonLeakage("k", "Dendrite, PostSynapseEdges")
@@ -258,7 +258,7 @@ if withIons == true then
     leakKdendConst = 3.0507e-10 + -- HH (mol/ms/m^2)
            -(2.0/3.0 * 1.61593e-11)   -- Na/K (mol/ms//m^2)
     kLeakdend:set_perm(leakKdendConst, k_in, k_out, v_eq, 1)
-    VMD:add(kLeakdend)
+    CE:add(kLeakdend)
     
 --All v-leak-flux Settings------------------------------------------------------------------------------------------
     -- leakage-Channel definitons
@@ -279,7 +279,7 @@ if withIons == true then
     leak:set_rev_pot(-56.314322586687, "Dendrite, PostSynapseEdges")
     print("neu: " .. ((2.78755e-05 - (g_l_de*tmp_fct *65)) / (-g_l_de*tmp_fct)))
     --Adding Channel
-    VMD:add(leak)
+    CE:add(leak)
 
 
 else
@@ -293,24 +293,24 @@ else
     leak:set_cond(g_l_de*tmp_fct, "Dendrite, PostSynapseEdges")
     leak:set_rev_pot(-57.803624, "Dendrite, PostSynapseEdges")
     
-    VMD:add(leak)
+    CE:add(leak)
 end
 
 -- synapses
 syn_handler = NETISynapseHandler()
 syn_handler:set_presyn_subset("PreSynapse")
-syn_handler:set_vmdisc(VMD)
+syn_handler:set_vmdisc(CE)
 syn_handler:set_activation_timing(
 	5.0,	-- average start time of synaptical activity in ms
 	2.5,	-- average duration of activity in ms (10)
 	2.5,	-- deviation of start time in ms
 	0.1,	-- deviation of duration in ms
 	1.2e-3)	-- peak conductivity in units of uS (6e-4)
-VMD:set_synapse_handler(syn_handler)
+CE:set_synapse_handler(syn_handler)
 
 -- domain discretization
 domainDisc = DomainDiscretization(approxSpace)
-domainDisc:add(VMD)
+domainDisc:add(CE)
 
 assTuner = domainDisc:ass_tuner()
 
@@ -396,7 +396,7 @@ while endTime-time > 0.001*curr_dt do
 	-- reduce time step if cfl < curr_dt
 	-- (this needs to be done AFTER prepare_step as channels are updated there)
 	dtChanged = false
-	cfl = VMD:estimate_cfl_cond(solTimeSeries:latest())
+	cfl = CE:estimate_cfl_cond(solTimeSeries:latest())
 	print("estimated CFL condition: dt < " .. cfl)
 	while (curr_dt > cfl) do
 		curr_dt = curr_dt/dtred

@@ -199,21 +199,21 @@ else
 end
 
 -- cable equation
-VMD = CableEquation(ss_axon..", "..ss_dend..", "..ss_soma..", PreSynapseEdges, PostSynapseEdges", withIons)
-VMD:set_spec_cap(spec_cap)
-VMD:set_spec_res(spec_res)
+CE = CableEquation(ss_axon..", "..ss_dend..", "..ss_soma..", PreSynapseEdges, PostSynapseEdges", withIons)
+CE:set_spec_cap(spec_cap)
+CE:set_spec_res(spec_res)
 
-VMD:set_rev_pot_k(e_k)
-VMD:set_rev_pot_na(e_na)
-VMD:set_rev_pot_ca(e_ca)
+CE:set_rev_pot_k(e_k)
+CE:set_rev_pot_na(e_na)
+CE:set_rev_pot_ca(e_ca)
 
-VMD:set_k_out(k_out)
-VMD:set_na_out(na_out)
-VMD:set_ca_out(ca_out)
+CE:set_k_out(k_out)
+CE:set_na_out(na_out)
+CE:set_ca_out(ca_out)
 
-VMD:set_diff_coeffs({diff_k, diff_na, diff_ca})
+CE:set_diff_coeffs({diff_k, diff_na, diff_ca})
 
-VMD:set_temperature_celsius(temp)
+CE:set_temperature_celsius(temp)
 
 
 -- Hodgkin and Huxley channels
@@ -226,7 +226,7 @@ HH:set_conductances(g_k_ax, g_na_ax, ss_axon..", PreSynapseEdges")
 HH:set_conductances(g_k_so, g_na_so, ss_soma)
 HH:set_conductances(g_k_de, g_na_de, ss_dend..", PostSynapseEdges")
 
-VMD:add(HH)
+CE:add(HH)
 
 -- leakage
 tmp_fct = math.pow(2.3,(temp-23.0)/10.0)
@@ -239,23 +239,23 @@ leak:set_rev_pot(-30.654022, ss_soma)
 leak:set_cond(g_l_de*tmp_fct, ss_dend..", PostSynapseEdges")
 leak:set_rev_pot(-57.803624, ss_dend..", PostSynapseEdges")
 
-VMD:add(leak)
+CE:add(leak)
 
 -- synapses
 syn_handler = NETISynapseHandler()
 syn_handler:set_presyn_subset("PreSynapse")
-syn_handler:set_vmdisc(VMD)
+syn_handler:set_vmdisc(CE)
 syn_handler:set_activation_timing(
 	0.0,	-- average start time of synaptical activity in ms
 	2.4,	-- average duration of activity in ms (10)
 	0.0,	-- deviation of start time in ms
 	0.1,	-- deviation of duration in ms
 	1.2e-3)	-- peak conductivity in units of uS (6e-4)
-VMD:set_synapse_handler(syn_handler)
+CE:set_synapse_handler(syn_handler)
 
 -- domain discretization
 domainDisc = DomainDiscretization(approxSpace)
-domainDisc:add(VMD)
+domainDisc:add(CE)
 
 assTuner = domainDisc:ass_tuner()
 
@@ -334,7 +334,7 @@ while endTime-time > 0.001*curr_dt do
 	-- reduce time step if cfl < curr_dt
 	-- (this needs to be done AFTER prepare_step as channels are updated there)
 	dtChanged = false
-	cfl = VMD:estimate_cfl_cond(solTimeSeries:latest())
+	cfl = CE:estimate_cfl_cond(solTimeSeries:latest())
 	print("estimated CFL condition: dt < " .. cfl)
 	while (curr_dt > cfl) do
 		curr_dt = curr_dt/dtred

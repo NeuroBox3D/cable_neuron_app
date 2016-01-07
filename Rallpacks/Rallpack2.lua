@@ -121,23 +121,23 @@ approxSpace:add_fct("ca", "Lagrange", 1)
 
 
 --constructor creates every needed concentration out of added Channels from Channel list
-VMD = CableEquation("dend")
-VMD:set_diameter(Diameter)
-VMD:set_diff_coeffs({1.0e-12, 1.0e-12, 2.2e-13}) --m^2/ms
+CE = CableEquation("dend")
+CE:set_diameter(Diameter)
+CE:set_diff_coeffs({1.0e-12, 1.0e-12, 2.2e-13}) --m^2/ms
 
 ---[[
 print("Setting influxes")
 for i = 1, Number_of_Influxes, 1 do
-	VMD:set_influx(InfluxValue[i], InfluxPlacex[i], InfluxPlacey[i], InfluxPlacez[i], InfluxStart[i]*dt, (InfluxDuration[i]*dt))
+	CE:set_influx(InfluxValue[i], InfluxPlacex[i], InfluxPlacey[i], InfluxPlacez[i], InfluxStart[i]*dt, (InfluxDuration[i]*dt))
 end
 --]]
 
 -- Set dendritic geo Values
 
 
-VMD:set_spec_cap(spec_cap)
-VMD:set_spec_res(spec_res)
---VMD:set_influx_ac(Flux_ac)
+CE:set_spec_cap(spec_cap)
+CE:set_spec_res(spec_res)
+--CE:set_influx_ac(Flux_ac)
 --building of new Gridfunction is needed for the added channels so all channels have to be added before this
 
 
@@ -154,7 +154,7 @@ u = GridFunction(approxSpace)
 time = 0.0
 step = 0
 
--- Startvalues can now beiing iterpoplate VMD construktor build unknowns in dof
+-- Startvalues can now beiing iterpoplate CE construktor build unknowns in dof
 -- Getting new ApproxSpace and writting new Gridfunction
 
 
@@ -181,7 +181,7 @@ Interpolate(5e-5, u, "ca", time)
 -------------------------------------------
 
 domainDisc = DomainDiscretization(approxSpace)
-domainDisc:add(VMD)
+domainDisc:add(CE)
 
 
 -------------------------------------------

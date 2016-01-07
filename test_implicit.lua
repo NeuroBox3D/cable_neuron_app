@@ -128,8 +128,8 @@ HH:set_nernst_consts(8.3136, 310.0, 96485.0)
 HH:set_diff_Na(diff_na)
 HH:set_diff_K(diff_k)
 
-VMD = CableEquation("dend, soma")
---VMD:set_diameter(diameter)
+CE = CableEquation("dend, soma")
+--CE:set_diameter(diameter)
 
 diri = DirichletBoundary()
 diri:add(0.0, "h", "dend, soma")
@@ -142,7 +142,7 @@ diri:add(0.0, "ca", "axon")
 -------------------------------------------
 
 domainDisc = DomainDiscretization(approxSpace)
-domainDisc:add(VMD)
+domainDisc:add(CE)
 domainDisc:add(HH)
 domainDisc:add(diri)
 

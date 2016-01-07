@@ -97,36 +97,36 @@ OrderCuthillMcKee(approxSpace, true);
 ----------------------
 
 -- cable equation
-VMD = CableEquation("axon, dend, soma")
---VMD:set_diameter(diameter)
---VMD:set_diff_coeffs({diff_k, diff_na, diff_ca})
---VMD:set_spec_cap(spec_cap)
---VMD:set_spec_res(spec_res)
---VMD:set_influx_ac(Flux_ac)
+CE = CableEquation("axon, dend, soma")
+--CE:set_diameter(diameter)
+--CE:set_diff_coeffs({diff_k, diff_na, diff_ca})
+--CE:set_spec_cap(spec_cap)
+--CE:set_spec_res(spec_res)
+--CE:set_influx_ac(Flux_ac)
 
 -- Hodgkin and Huxley channels
 HH = ChannelHHNernst("v, k, na", "axon")
-VMD:add(HH)
+CE:add(HH)
 --HH = ChannelHHNernst("v, k, na", "axon")
 
 -- leakage
 leakAxon = ChannelLeak("v", "axon")
 leakAxon:set_rev_pot(-54.4)
 leakDend = ChannelLeak("v", "dend")
-VMD:add(leakAxon)
-VMD:add(leakDend)
+CE:add(leakAxon)
+CE:add(leakDend)
 
 -- synapses
 syn_handler = NETISynapseHandler()
 syn_handler:set_presyn_subset("PreSynapse")
-syn_handler:set_vmdisc(VMD)
+syn_handler:set_vmdisc(CE)
 syn_handler:set_activation_timing(
 	0.1,	-- average start time of synaptical activity in ms
 	5,		-- average duration of activity in ms (10)
 	1.0,	-- deviation of start time in ms
 	0.5,	-- deviation of duration in ms
 	1.2e-3)	-- peak conductivity (6e-4)
-VMD:set_synapse_handler(syn_handler)
+CE:set_synapse_handler(syn_handler)
 
 -- treat unknowns on synapse subset
 diri = DirichletBoundary()
@@ -138,7 +138,7 @@ diri:add(0.0, "ca", "Exp2Syn")
 
 -- domain discretization
 domainDisc = DomainDiscretization(approxSpace)
-domainDisc:add(VMD)
+domainDisc:add(CE)
 domainDisc:add(diri)
 
 -- time discretization
