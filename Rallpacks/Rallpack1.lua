@@ -170,7 +170,7 @@ Interpolate(10.0, u, "na", time);
 Interpolate(5e-5, u, "ca", time)
 
 -- Init interpolates all needed concentrations
--- has to be written in IChannel:init()
+-- has to be written in ICableMembraneTransport:init()
 --HH:init(dt, u)
 --HHa:init(dt, u)
 
