@@ -152,13 +152,13 @@ OrderCuthillMcKee(approxSpace, true);
 ----------------------
 
 -- cable equation
-VMD = VMDisc("Axon, Dendrite, Soma, PreSynapseEdges, PostSynapseEdges")
+VMD = CableEquation("Axon, Dendrite, Soma, PreSynapseEdges, PostSynapseEdges")
 VMD:set_spec_cap(spec_cap)
 VMD:set_spec_res(spec_res)
 
-VMD:set_ek(e_k)
-VMD:set_ena(e_na)
-VMD:set_eca(e_ca)
+VMD:set_rev_pot_k(e_k)
+VMD:set_rev_pot_na(e_na)
+VMD:set_rev_pot_ca(e_ca)
 
 VMD:set_k_out(k_out)
 VMD:set_na_out(na_out)
@@ -178,9 +178,9 @@ HHsoma:set_conductances(g_k_so, g_na_so)
 HHdend = ChannelHH("v", "Dendrite, PostSynapseEdges")
 HHdend:set_conductances(g_k_de, g_na_de)
 
-VMD:add_channel(HHaxon)
-VMD:add_channel(HHsoma)
-VMD:add_channel(HHdend)
+VMD:add(HHaxon)
+VMD:add(HHsoma)
+VMD:add(HHdend)
 
 -- leakage
 tmp_fct = math.pow(2.3,(temp-23.0)/10.0)
@@ -195,9 +195,9 @@ leakDend = ChannelLeak("v", "Dendrite, PostSynapseEdges")
 leakDend:set_cond(g_l_de*tmp_fct)
 leakDend:set_rev_pot(-57.803624)
 
-VMD:add_channel(leakAxon)
-VMD:add_channel(leakSoma)
-VMD:add_channel(leakDend)
+VMD:add(leakAxon)
+VMD:add(leakSoma)
+VMD:add(leakDend)
 
 -- synapses
 syn_handler = NETISynapseHandler()

@@ -234,7 +234,7 @@ OrderCuthillMcKee(approxSpace, true);
 
 
 --------------------------------------------------------------------------------
---VMDisc constructor creates every needed concentration out of added Channels from Channel list
+--CableEquation constructor creates every needed concentration out of added Channels from Channel list
 --------------------------------------------------------------------------------
 
 if cell == "12-L3pyr" then
@@ -244,14 +244,14 @@ else
 end
 
 -- cable equation
-VMD = VMDisc("soma, axon, " .. dendSubsets)
+VMD = CableEquation("soma, axon, " .. dendSubsets)
 
 VMD:set_spec_cap(spec_cap)
 VMD:set_spec_res(spec_res)
 
-VMD:set_ek(e_k)
-VMD:set_ena(e_na)
-VMD:set_eca(e_ca)
+VMD:set_rev_pot_k(e_k)
+VMD:set_rev_pot_na(e_na)
+VMD:set_rev_pot_ca(e_ca)
 
 VMD:set_k_out(k_out)
 VMD:set_na_out(na_out)
@@ -268,7 +268,7 @@ HH:set_conductances(g_k_ax, g_na_ax, "axon")
 HH:set_conductances(g_k_so, g_na_so, "soma")
 HH:set_conductances(g_k_de, g_na_de, dendSubsets)
 
-VMD:add_channel(HH)
+VMD:add(HH)
 
 --[[
 --Calcium dynamics
@@ -283,16 +283,16 @@ leakCaConst = -3.4836065573770491e-12 +	-- single pump PMCA flux density (mol/ms
 caLeak:set_perm(leakCaConst, ca_in, ca_out, v_eq, 2)
 
 
-VMD:add_channel(ncx)
-VMD:add_channel(pmca)
-VMD:add_channel(vdcc)
---VMD:add_channel(caLeak)
+VMD:add(ncx)
+VMD:add(pmca)
+VMD:add(vdcc)
+--VMD:add(caLeak)
 --]]
 
 -- K equilibration axon
 nak = Na_K_Pump("", "axon")
 nak:set_IMAX_P(0.0026481515257588432)
-VMD:add_channel(nak)
+VMD:add(nak)
 
 kLeak = IonLeakage("k", "axon")
 kLeak:set_leaking_quantity("k")
@@ -300,7 +300,7 @@ leakKConst = 0.0000000040675975261062531 +	-- HH (mol/ms/m^2)
 			 -0.00000000010983795579882983 	-- Na/K (mol/ms//m^2)
 kLeak:set_perm(leakKConst, k_in, k_out, v_eq, 1)
 
-VMD:add_channel(kLeak)
+VMD:add(kLeak)
 
 -- K equilibration soma
 --Flux: pot HH: 2.0338e-09 Subset: 0
@@ -309,7 +309,7 @@ VMD:add_channel(kLeak)
 --pumping: 4.57658e-06 Subset: 0
 nakso = Na_K_Pump("", "soma")
 nakso:set_IMAX_P(6.05974e-10/4.57658e-06)
-VMD:add_channel(nakso)
+VMD:add(nakso)
 
 kLeakso = IonLeakage("k", "soma")
 kLeakso:set_leaking_quantity("k")
@@ -317,7 +317,7 @@ leakKsoConst = 2.0338e-09 +	-- HH (mol/ms/m^2)
 			 -(2.0/3.0 * 6.05974e-10) 	-- Na/K (mol/ms//m^2)
 kLeakso:set_perm(leakKsoConst, k_in, k_out, v_eq, 1)
 
-VMD:add_channel(kLeakso)
+VMD:add(kLeakso)
 
 
 
@@ -330,7 +330,7 @@ VMD:add_channel(kLeakso)
 --pumping: 1.21195e-08 Subset: 3
 nakdend = Na_K_Pump("", "dendrite, apical_dendrite")
 nakdend:set_IMAX_P(1.61593e-11/4.57658e-06)
-VMD:add_channel(nakdend)
+VMD:add(nakdend)
 
 kLeakdend = IonLeakage("k", "soma")
 kLeakdend:set_leaking_quantity("k")
@@ -338,7 +338,7 @@ leakKdendConst = 3.0507e-10 +	-- HH (mol/ms/m^2)
 			 -(2.0/3.0 * 1.61593e-11) 	-- Na/K (mol/ms//m^2)
 kLeakdend:set_perm(leakKdendConst, k_in, k_out, v_eq, 1)
 
-VMD:add_channel(kLeakdend)
+VMD:add(kLeakdend)
 
 
 -- leakage 
@@ -375,7 +375,7 @@ print("neu: " .. ((2.78755e-05 - (g_l_de*tmp_fct *65)) / (-g_l_de*tmp_fct)))
 
 
 --Adding Channel
-VMD:add_channel(leak)
+VMD:add(leak)
 
 
 

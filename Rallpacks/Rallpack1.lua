@@ -121,7 +121,7 @@ approxSpace:add_fct("ca", "Lagrange", 1)
 
 
 --constructor creates every needed concentration out of added Channels from Channel list
-VMD = VMDisc("subset")
+VMD = CableEquation("subset")
 VMD:set_diameter(Diameter)
 VMD:set_diff_coeffs({1.0e-12, 1.0e-12, 2.2e-13}) --m^2/ms
 

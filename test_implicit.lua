@@ -128,7 +128,7 @@ HH:set_nernst_consts(8.3136, 310.0, 96485.0)
 HH:set_diff_Na(diff_na)
 HH:set_diff_K(diff_k)
 
-VMD = VMDisc("dend, soma")
+VMD = CableEquation("dend, soma")
 --VMD:set_diameter(diameter)
 
 diri = DirichletBoundary()

@@ -78,7 +78,7 @@ approxSpace:init_top_surface();
 ----------------------
 
 -- cable equation
-VMD = VMDisc("Axon, Dendrite, Soma, PreSynapseEdges, PostSynapseEdges", false)
+VMD = CableEquation("Axon, Dendrite, Soma, PreSynapseEdges, PostSynapseEdges", false)
 
 -- synapses
 syn_handler = NETISynapseHandler()

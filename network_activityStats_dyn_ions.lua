@@ -181,13 +181,13 @@ order_cuthillmckee(approxSpace);
 ----------------------
 
 -- cable equation
-VMD = VMDisc("Axon, Dendrite, Soma, PreSynapseEdges, PostSynapseEdges", withIons)
+VMD = CableEquation("Axon, Dendrite, Soma, PreSynapseEdges, PostSynapseEdges", withIons)
 VMD:set_spec_cap(spec_cap)
 VMD:set_spec_res(spec_res)
 
-VMD:set_ek(e_k)
-VMD:set_ena(e_na)
-VMD:set_eca(e_ca)
+VMD:set_rev_pot_k(e_k)
+VMD:set_rev_pot_na(e_na)
+VMD:set_rev_pot_ca(e_ca)
 
 VMD:set_k_out(k_out)
 VMD:set_na_out(na_out)
@@ -208,7 +208,7 @@ HH:set_conductances(g_k_ax, g_na_ax, "Axon, PreSynapseEdges")
 HH:set_conductances(g_k_so, g_na_so, "Soma")
 HH:set_conductances(g_k_de, g_na_de, "Dendrite, PostSynapseEdges")
 
-VMD:add_channel(HH)
+VMD:add(HH)
 
 ----------------------------------------------------------------------------------------------------------
 -- Setup for Dynamic Ions
@@ -221,7 +221,7 @@ if withIons == true then
     -- Na/K Pump
     nak = Na_K_Pump("", "Axon, PreSynapseEdges")
     nak:set_IMAX_P(0.0026481515257588432)
-    VMD:add_channel(nak)
+    VMD:add(nak)
     
     -- K-Leak
     kLeak = IonLeakage("k", "Axon, PreSynapseEdges")
@@ -230,13 +230,13 @@ if withIons == true then
            -0.00000000010983795579882983  -- Na/K (mol/ms//m^2)
     kLeak:set_perm(leakKConst, k_in, k_out, v_eq, 1)
     --print("leakK: " .. leakKConst)
-    VMD:add_channel(kLeak)
+    VMD:add(kLeak)
     
 --Soma Settings------------------------------------------------------------------------------------------------ 
     -- Na/K Pump  
     nakso = Na_K_Pump("", "Soma")
     nakso:set_IMAX_P(6.05974e-10/4.57658e-06)
-    VMD:add_channel(nakso)
+    VMD:add(nakso)
     
     -- K-Leak
     kLeakso = IonLeakage("k", "Soma")
@@ -244,13 +244,13 @@ if withIons == true then
     leakKsoConst = 2.0338e-09 + -- HH (mol/ms/m^2)
            -(2.0/3.0 * 6.05974e-10)   -- Na/K (mol/ms//m^2)
     kLeakso:set_perm(leakKsoConst, k_in, k_out, v_eq, 1)
-    VMD:add_channel(kLeakso)
+    VMD:add(kLeakso)
     
 --Dendrit Settings------------------------------------------------------------------------------------------------
     -- Na/K Pump    
     nakdend = Na_K_Pump("", "Dendrite, PostSynapseEdges")
     nakdend:set_IMAX_P(1.61593e-11/4.57658e-06)
-    VMD:add_channel(nakdend)
+    VMD:add(nakdend)
     
     -- K-Leak
     kLeakdend = IonLeakage("k", "Dendrite, PostSynapseEdges")
@@ -258,7 +258,7 @@ if withIons == true then
     leakKdendConst = 3.0507e-10 + -- HH (mol/ms/m^2)
            -(2.0/3.0 * 1.61593e-11)   -- Na/K (mol/ms//m^2)
     kLeakdend:set_perm(leakKdendConst, k_in, k_out, v_eq, 1)
-    VMD:add_channel(kLeakdend)
+    VMD:add(kLeakdend)
     
 --All v-leak-flux Settings------------------------------------------------------------------------------------------
     -- leakage-Channel definitons
@@ -279,7 +279,7 @@ if withIons == true then
     leak:set_rev_pot(-56.314322586687, "Dendrite, PostSynapseEdges")
     print("neu: " .. ((2.78755e-05 - (g_l_de*tmp_fct *65)) / (-g_l_de*tmp_fct)))
     --Adding Channel
-    VMD:add_channel(leak)
+    VMD:add(leak)
 
 
 else
@@ -293,7 +293,7 @@ else
     leak:set_cond(g_l_de*tmp_fct, "Dendrite, PostSynapseEdges")
     leak:set_rev_pot(-57.803624, "Dendrite, PostSynapseEdges")
     
-    VMD:add_channel(leak)
+    VMD:add(leak)
 end
 
 -- synapses

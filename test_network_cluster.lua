@@ -98,7 +98,7 @@ OrderCuthillMcKee(approxSpace, true);
 ----------------------
 
 -- cable equation
-VMD = VMDisc("Axon, Dendrite, Soma")
+VMD = CableEquation("Axon, Dendrite, Soma")
 --VMD:set_diameter(Diameter)
 --VMD:set_diff_coeffs({diff_k, diff_na, diff_ca})
 --VMD:set_spec_cap(spec_cap)
@@ -107,7 +107,7 @@ VMD = VMDisc("Axon, Dendrite, Soma")
 
 -- Hodgkin and Huxley channels
 HH = ChannelHH("v", "Axon")
-VMD:add_channel(HH)
+VMD:add(HH)
 --HH = ChannelHHNernst("v, k, na", "axon")
 
 -- synapses

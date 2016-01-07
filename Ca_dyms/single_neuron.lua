@@ -234,21 +234,21 @@ OrderCuthillMcKee(approxSpace, true);
 
 
 --------------------------------------------------------------------------------
---VMDisc constructor creates every needed concentration out of added Channels from Channel list
+--CableEquation constructor creates every needed concentration out of added Channels from Channel list
 --------------------------------------------------------------------------------
 -- cable equation
 if cell == "12-L3pyr" then
-	VMD = VMDisc("soma, axon, dendrite, apical_dendrite")
+	VMD = CableEquation("soma, axon, dendrite, apical_dendrite")
 else
-	VMD = VMDisc("soma, dendrite, axon")
+	VMD = CableEquation("soma, dendrite, axon")
 end
 
 VMD:set_spec_cap(spec_cap)
 VMD:set_spec_res(spec_res)
 
-VMD:set_ek(e_k)
-VMD:set_ena(e_na)
-VMD:set_eca(e_ca)
+VMD:set_rev_pot_k(e_k)
+VMD:set_rev_pot_na(e_na)
+VMD:set_rev_pot_ca(e_ca)
 
 VMD:set_k_out(k_out)
 VMD:set_na_out(na_out)
@@ -272,9 +272,9 @@ else
 end
 HHdend:set_conductances(g_k_de, g_na_de)
 
-VMD:add_channel(HHaxon)
-VMD:add_channel(HHsoma)
-VMD:add_channel(HHdend)
+VMD:add(HHaxon)
+VMD:add(HHsoma)
+VMD:add(HHdend)
 
 
 --Calcium dynamics
@@ -288,10 +288,10 @@ leakCaConst = -3.4836065573770491e-12 +	-- single pump PMCA flux density (mol/ms
 			  3.3017662162505882e-14
 caLeak:set_perm(leakCaConst, ca_in, ca_out, v_eq)
 
-VMD:add_channel(ncx)
-VMD:add_channel(pmca)
-VMD:add_channel(vdcc)
-VMD:add_channel(caLeak)
+VMD:add(ncx)
+VMD:add(pmca)
+VMD:add(vdcc)
+VMD:add(caLeak)
 
 
 -- leakage
@@ -311,9 +311,9 @@ end
 leakDend:set_cond(g_l_de*tmp_fct)
 leakDend:set_rev_pot(-57.803624)
 
-VMD:add_channel(leakAxon)
-VMD:add_channel(leakSoma)
-VMD:add_channel(leakDend)
+VMD:add(leakAxon)
+VMD:add(leakSoma)
+VMD:add(leakDend)
 
 
 -- synapses

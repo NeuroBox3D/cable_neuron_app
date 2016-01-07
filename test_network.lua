@@ -97,7 +97,7 @@ OrderCuthillMcKee(approxSpace, true);
 ----------------------
 
 -- cable equation
-VMD = VMDisc("axon, dend, soma")
+VMD = CableEquation("axon, dend, soma")
 --VMD:set_diameter(diameter)
 --VMD:set_diff_coeffs({diff_k, diff_na, diff_ca})
 --VMD:set_spec_cap(spec_cap)
@@ -106,15 +106,15 @@ VMD = VMDisc("axon, dend, soma")
 
 -- Hodgkin and Huxley channels
 HH = ChannelHHNernst("v, k, na", "axon")
-VMD:add_channel(HH)
+VMD:add(HH)
 --HH = ChannelHHNernst("v, k, na", "axon")
 
 -- leakage
 leakAxon = ChannelLeak("v", "axon")
 leakAxon:set_rev_pot(-54.4)
 leakDend = ChannelLeak("v", "dend")
-VMD:add_channel(leakAxon)
-VMD:add_channel(leakDend)
+VMD:add(leakAxon)
+VMD:add(leakDend)
 
 -- synapses
 syn_handler = NETISynapseHandler()

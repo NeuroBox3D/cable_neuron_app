@@ -199,13 +199,13 @@ else
 end
 
 -- cable equation
-VMD = VMDisc(ss_axon..", "..ss_dend..", "..ss_soma..", PreSynapseEdges, PostSynapseEdges", withIons)
+VMD = CableEquation(ss_axon..", "..ss_dend..", "..ss_soma..", PreSynapseEdges, PostSynapseEdges", withIons)
 VMD:set_spec_cap(spec_cap)
 VMD:set_spec_res(spec_res)
 
-VMD:set_ek(e_k)
-VMD:set_ena(e_na)
-VMD:set_eca(e_ca)
+VMD:set_rev_pot_k(e_k)
+VMD:set_rev_pot_na(e_na)
+VMD:set_rev_pot_ca(e_ca)
 
 VMD:set_k_out(k_out)
 VMD:set_na_out(na_out)
@@ -226,7 +226,7 @@ HH:set_conductances(g_k_ax, g_na_ax, ss_axon..", PreSynapseEdges")
 HH:set_conductances(g_k_so, g_na_so, ss_soma)
 HH:set_conductances(g_k_de, g_na_de, ss_dend..", PostSynapseEdges")
 
-VMD:add_channel(HH)
+VMD:add(HH)
 
 -- leakage
 tmp_fct = math.pow(2.3,(temp-23.0)/10.0)
@@ -239,7 +239,7 @@ leak:set_rev_pot(-30.654022, ss_soma)
 leak:set_cond(g_l_de*tmp_fct, ss_dend..", PostSynapseEdges")
 leak:set_rev_pot(-57.803624, ss_dend..", PostSynapseEdges")
 
-VMD:add_channel(leak)
+VMD:add(leak)
 
 -- synapses
 syn_handler = NETISynapseHandler()
@@ -247,8 +247,8 @@ syn_handler:set_presyn_subset("PreSynapse")
 syn_handler:set_vmdisc(VMD)
 syn_handler:set_activation_timing(
 	0.0,	-- average start time of synaptical activity in ms
-	2.5,	-- average duration of activity in ms (10)
-	2.5,	-- deviation of start time in ms
+	2.4,	-- average duration of activity in ms (10)
+	0.0,	-- deviation of start time in ms
 	0.1,	-- deviation of duration in ms
 	1.2e-3)	-- peak conductivity in units of uS (6e-4)
 VMD:set_synapse_handler(syn_handler)
