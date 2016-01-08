@@ -15,7 +15,7 @@ dim = 3
 
 -- init UG
 InitUG(dim, AlgebraType("CPU", 1));
-AssertPluginsLoaded({"SynapseHandler","HH_Kabelnew"})
+AssertPluginsLoaded({"cable_neuron"})
 
 -- parameters steering simulation
 numPreRefs	= util.GetParamNumber("-numPreRefs",	0)
