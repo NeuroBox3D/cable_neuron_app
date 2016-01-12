@@ -88,8 +88,8 @@ AssertPluginsLoaded({"SynapseDistributor", "SynapseHandler","HH_Kabelnew"})
 -- parameters steering simulation
 numPreRefs	= util.GetParamNumber("-numPreRefs",	0)
 numRefs		= util.GetParamNumber("-numRefs",		0)
-dt			= util.GetParamNumber("-dt",			0.01) -- in ms
-endTime		= util.GetParamNumber("-endTime",	  10000.0) -- in ms
+dt			= util.GetParamNumber("-dt",			1e-5) -- in s
+endTime		= util.GetParamNumber("-endTime",	  	10.0) -- in s
 nSteps 		= util.GetParamNumber("-nSteps",		endTime/dt)
 pstep		= util.GetParamNumber("-pstep",			dt,		"plotting interval")
 
@@ -130,32 +130,31 @@ end
 --------------------------
 -- biological settings	--
 --------------------------
-
 -- settings are according to T. Branco
 
--- membrane conductances (in units of C/m^2/mV/ms = 10^6 S/m^2)
-g_k_ax = 4.0e-4	-- axon
-g_k_so = 2.0e-4	-- soma
-g_k_de = 3.0e-5	-- dendrite
+-- membrane conductances (in units of S/m^2)
+g_k_ax = 400.0	-- axon
+g_k_so = 200.0	-- soma
+g_k_de = 30		-- dendrite
 
-g_na_ax = 3.0e-2
-g_na_so = 1.5e-3
-g_na_de = 4.0e-5
+g_na_ax = 3.0e4
+g_na_so = 1.5e3
+g_na_de = 40.0
 
-g_l_ax = 2.0e-4
-g_l_so = 1.0e-6
-g_l_de = 1.0e-6
+g_l_ax = 200.0
+g_l_so = 1.0
+g_l_de = 1.0
 
--- capacitance (in units of C/mV/m^2 = 10^3 F/m^2)
-spec_cap = 1.0e-5
+-- specific capacitance (in units of F/m^2)
+spec_cap = 1.0e-2
 
--- resistance (in units of mV ms m / C = 10^-6 Ohm m)
-spec_res = 1.5e6
+-- resistivity (in units of Ohm m)
+spec_res = 1.5
 
--- reversal potentials (in units of mV)
-e_k  = -90.0
-e_na = 60.0
-e_ca = 140.0
+-- reversal potentials (in units of V)
+e_k  = -0.09
+e_na = 0.06
+e_ca = 0.14
 
 -- equilibrium concentrations (in units of mM)
 -- comment: these concentrations will not yield Nernst potentials
@@ -169,13 +168,13 @@ k_in   = 140.0
 na_in  = 10.0
 ca_in  = 5e-5
 
--- equilibrium potential (in units of mV)
-v_eq = -65.0
+-- equilibrium potential (in units of V)
+v_eq = -0.065
 
--- diffusion coefficients (in units of m^2/ms)
-diff_k 	= 1.0e-12
-diff_na	= 1.0e-12
-diff_ca	= 2.2e-13
+-- diffusion coefficients (in units of m^2/s)
+diff_k 	= 1.0e-9
+diff_na	= 1.0e-9
+diff_ca	= 2.2e-10
 
 -- temperature in units of deg Celsius
 temp = 37.0
@@ -278,14 +277,14 @@ CE:add(HHdend)
 
 
 --Calcium dynamics
-vdcc = VDCC_BG_Cable("ca", "dendrite, soma, apical_dendrite")
-ncx = Ca_NCX("v, ca", "dendrite, soma, apical_dendrite")
-pmca = Ca_PMCA("v, ca", "dendrite, soma, apical_dendrite")
+vdcc = VDCC_BG_cable("ca", "dendrite, soma, apical_dendrite")
+ncx = NCX_cable("v, ca", "dendrite, soma, apical_dendrite")
+pmca = PMCA_cable("v, ca", "dendrite, soma, apical_dendrite")
 caLeak = IonLeakage("", "dendrite, soma, apical_dendrite")
 caLeak:set_leaking_quantity("ca")
-leakCaConst = -3.4836065573770491e-12 +	-- single pump PMCA flux density (mol/ms/m^2)
-			  -1.0135135135135137e-12 +	-- single pump NCX flux (mol/ms//m^2)
-			  3.3017662162505882e-14
+leakCaConst = -3.4836065573770491e-9 +	-- single pump PMCA flux density (mol/s/m^2)
+			  -1.0135135135135137e-9 +	-- single pump NCX flux (mol/s/m^2)
+			  3.3017662162505882e-11
 caLeak:set_perm(leakCaConst, ca_in, ca_out, v_eq)
 
 CE:add(ncx)
@@ -299,17 +298,17 @@ tmp_fct = math.pow(2.3,(temp-23.0)/10.0)
 
 leakAxon = ChannelLeak("v", "axon")
 leakAxon:set_cond(g_l_ax*tmp_fct)
-leakAxon:set_rev_pot(-66.148458)
+leakAxon:set_rev_pot(-0.066148458)
 leakSoma = ChannelLeak("v", "soma")
 leakSoma:set_cond(g_l_so*tmp_fct)
-leakSoma:set_rev_pot(-30.654022)
+leakSoma:set_rev_pot(-0.030654022)
 if cell == "12-L3pyr" then
 	leakDend = ChannelLeak("v", "dendrite, apical_dendrite")
 else
 	leakDend = ChannelLeak("v", "dendrite")
 end
 leakDend:set_cond(g_l_de*tmp_fct)
-leakDend:set_rev_pot(-57.803624)
+leakDend:set_rev_pot(-0.057803624)
 
 CE:add(leakAxon)
 CE:add(leakSoma)
@@ -319,7 +318,7 @@ CE:add(leakDend)
 -- synapses
 syn_handler = NETISynapseHandler()
 --syn_handler:set_presyn_subset("PreSynapse")
-syn_handler:set_vmdisc(CE)
+syn_handler:set_ce_object(CE)
 syn_handler:set_activation_timing(
 	avg_start,	-- average start time of synaptical activity in ms
 	avg_dur,	-- average duration of activity in ms (10)
@@ -339,20 +338,20 @@ CE:set_synapse_handler(syn_handler)
 --  INFO: coords for 31o_pyramidal19aFI.CNG_with_subsets.ugx --
 
 --	ELECTRODE STIMULATION near soma: 5nA seem to inervate the pyramidal cell with uniform diameters of 1um
---CE:set_influx(5e-12, 6.54e-05, 2.665e-05, 3.985e-05, 0.0, 40) -- current given in C/ms
+--CE:set_influx(5e-9, 6.54e-05, 2.665e-05, 3.985e-05, 0.0, 0.04) -- current given in A
 
 --	!!! DO NOT USE!!! ELECTRODE STIMULATION into soma: 5nA seem to enervate the pyramidal cell with attached diameters (also causing backpropagating APs)
---CE:set_influx(5e-12, 6.9e-06, 3.74e-05, -2.86e-05, 0.0, 40) -- current given in C/ms 
+--CE:set_influx(5e-9, 6.9e-06, 3.74e-05, -2.86e-05, 0.0, 0.04) -- current given in A
 
 
 -- INFO: coords for 13-L3pyr-77.CNG.ugx --current given in C/ms --
 
---CE:set_influx(5e-12, 3.955e-06, 1.095e-06, -3.365e-06, 1.0, 2.5) -- 1st edge soma to dend
---CE:set_influx(0.3e-12, 3.955e-06, 1.095e-06, -3.365e-06, 0.0, 30.0) -- 1st 1st edge soma to dend
---CE:set_influx(0.095e-12, 0.0, 0.0, 0.0, 100.0, 100.0) -- soma center vertex
---CE:set_influx(0.2e-12, 0.0, 0.0, 0.0, 5.0, 0.5) -- soma center vertex
---CE:set_influx(10.0e-12, 0.000139, 0.00020809, -2.037e-05, 5.0, 5.0) -- distal apical dendrite vertex v1
---CE:set_influx(10.0e-12, -3.96e-06, 0.0002173, -5.431e-05, 5.0, 5.0) -- distal apical dendrite vertex v2
+--CE:set_influx(5e-9, 3.955e-06, 1.095e-06, -3.365e-06, 0.001, 0.0025) -- 1st edge soma to dend
+--CE:set_influx(0.3e-9, 3.955e-06, 1.095e-06, -3.365e-06, 0.0, 0.03) -- 1st 1st edge soma to dend
+--CE:set_influx(0.095e-9, 0.0, 0.0, 0.0, 0.1, 0.1) -- soma center vertex
+--CE:set_influx(0.2e-9, 0.0, 0.0, 0.0, 0.005, 0.0005) -- soma center vertex
+--CE:set_influx(10.0e-9, 0.000139, 0.00020809, -2.037e-05, 0.005, 0.005) -- distal apical dendrite vertex v1
+--CE:set_influx(10.0e-9, -3.96e-06, 0.0002173, -5.431e-05, 0.005, 0.005) -- distal apical dendrite vertex v2
 -------------------------------------------
 --  Setup Domain Discretization
 -------------------------------------------

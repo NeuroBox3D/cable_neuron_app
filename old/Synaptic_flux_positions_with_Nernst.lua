@@ -82,12 +82,12 @@ end
 import_status = gi:import_geometry(file, ""), "GeometryImport"
 common:printfn("Status: %s", tostring(import_status))
 
-dt = util.GetParamNumber("-dt", 0.01)
-time = 10 -- in ms
+dt = util.GetParamNumber("-dt", 1e-5)	-- in units of s
+time = 0.01
 timefaktor = 1/dt
 -- 100 steps = 1ms
 numbersteps = util.GetParamNumber("-nSteps", timefaktor*time)
-StartValue = -65.0
+StartValue = -0.065
 
 -- choose number of time steps
 --NumPreTimeSteps = util.GetParamNumber("-numPreTimeSteps", 1)
@@ -111,13 +111,13 @@ Flux_ac = 1e-5
 -- Settings for HH-Fluxes different fluxes are seperated by ","
 --------------------------------------------------------------------------------
 -- constants
-InfluxValue = {8e-2} -- in C/m^2/ms
+InfluxValue = {1e-9} -- in A
 --0.125, 0.25, 0
 InfluxPlacex = {0} --{-2.0e-5}-- in m 
 InfluxPlacey = {0} --{0.0}-- in m
 InfluxPlacez = {0} --{0.0}-- in m
 InfluxStart = {0*timefaktor}--{10*timefaktor}		-- after 10 ms
-InfluxDuration = {1*timefaktor}	-- duration of 2 ms
+InfluxDuration = {0.002*timefaktor}	-- duration of 2 ms
 Flux_ac = 1e-9
 
 --------------------------------------------------------------------------------
@@ -137,18 +137,19 @@ end
 --------------------------------------------------------------------------------
 -- Settings for HH-Constants
 --------------------------------------------------------------------------------
--- in c/m^2/mV/ms
-g_Na = 1.2e-3
-g_K  = 0.36e-3
-g_L  = 0.003e-3
+-- in S/m^2
+g_Na = 1200.0
+g_K  = 360.0
+g_L  = 3.0
+
 -- accuracy because of gating params
 ac = 1e-6
 --------------------------------------------------------------------------------
 -- Settings for Dendrit
 --------------------------------------------------------------------------------
-Diameter = 1.0e-6 -- in m
-spec_cap = 1.0e-5 -- in C/mV/m^2
-spec_res = 1.0e6 -- in mV ms m / Q
+Diameter = 1.0e-6	-- in m
+spec_cap = 1.0e-2	-- in F/m^2
+spec_res = 1.0 		-- in Ohm m
 
 
 --------------------------------------------------------------------------------
@@ -266,36 +267,35 @@ end
 --injection_flux = LuaFunctionNumber()
 --injection_flux:set_lua_callback("injection"..dim.."d", (1+dim))
 
-ena = 63.5129
-ek = -74.1266
+ena = 0.0635129
+ek = -0.0741266
 
 -- Adding hodgkin and huxley fluxes
 HH = ChannelHHNernst("v, k, na", "axon, dend, soma")
 
 --constructor creates every needed concentration out of added Channels from Channel list
-VMD = VMDisc("axon, dend, soma, Exp2Syn", approxSpace)
-VMD:set_diameter(Diameter)
---VMD:set_diff_coeffs({1.0e-12, 1.0e-12, 2.2e-13}) --m^2/ms
-VMD:add_channel(HH)
---VMD:set_synapse_provider(NETIHandler)
+CE = CableEquation("axon, dend, soma, Exp2Syn", approxSpace)
+CE:set_diameter(Diameter)
+--CE:set_diff_coeffs({1.0e-9, 1.0e-9, 2.2e-10}) --m^2/s
+CE:add_channel(HH)
+--CE:set_synapse_provider(NETIHandler)
 print("Setup Presyn Subset...")
 NETIHandler:set_presyn_subset("PreSynapse")
-print("Setup VMDisc...")
-NETIHandler:set_vmdisc(VMD) -- segfaults, investigate why. TODO
+NETIHandler:set_ce_object(CE) -- segfaults, investigate why. TODO
 
 --[[
 print("Setting influxes")
 for i = 1, Number_of_Influxes, 1 do
-	VMD:set_influx(InfluxValue[i], InfluxPlacex[i], InfluxPlacey[i], InfluxPlacez[i], InfluxStart[i]*dt, (InfluxStart[i]*dt + InfluxDuration[i]*dt))
+	CE:set_influx(InfluxValue[i], InfluxPlacex[i], InfluxPlacey[i], InfluxPlacez[i], InfluxStart[i]*dt, (InfluxStart[i]*dt + InfluxDuration[i]*dt))
 end
 --]]
 
 -- Set dendritic geo Values
 
 
---VMD:set_spec_cap(spec_cap)
---VMD:set_spec_res(spec_res)
---VMD:set_influx_ac(Flux_ac)
+--CE:set_spec_cap(spec_cap)
+--CE:set_spec_res(spec_res)
+--CE:set_influx_ac(Flux_ac)
 --building of new Gridfunction is needed for the added channels so all channels have to be added before this
 
 
@@ -314,7 +314,7 @@ u = GridFunction(approxSpace)
 time = 0.0
 step = 0
 
--- Startvalues can now beiing iterpoplate VMD construktor build unknowns in dof
+-- Startvalues can now beiing iterpoplate CE construktor build unknowns in dof
 -- Getting new ApproxSpace and writting new Gridfunction
 
 
@@ -324,7 +324,7 @@ step = 0
 -------------------------------------
 
 -- set initial value
-Interpolate(-65.0, u, "v", time)
+Interpolate(-0.065, u, "v", time)
 Interpolate(54.4, u, "k", time);
 Interpolate(10.0, u, "na", time);
 Interpolate(5e-5, u, "ca", time)
@@ -341,7 +341,7 @@ Interpolate(5e-5, u, "ca", time)
 -------------------------------------------
 
 domainDisc = DomainDiscretization(approxSpace)
-domainDisc:add(VMD)
+domainDisc:add(CE)
 --domainDisc:add(HH)
 --domainDisc:add(injection_bound)
 

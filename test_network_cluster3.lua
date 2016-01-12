@@ -25,8 +25,8 @@ AssertPluginsLoaded({"SynapseHandler","HH_Kabelnew"})
 -- parameters steering simulation
 numPreRefs	= util.GetParamNumber("-numPreRefs",	0)
 numRefs		= util.GetParamNumber("-numRefs",		0)
-dt			= util.GetParamNumber("-dt",			0.01) -- in ms
-endTime		= util.GetParamNumber("-endTime",		10.0) -- in ms
+dt			= util.GetParamNumber("-dt",			1e-5) -- in units of s
+endTime		= util.GetParamNumber("-endTime",		0.01) -- in units of s
 nSteps 		= util.GetParamNumber("-nSteps",		endTime/dt)
 
 -- vtk output?
@@ -41,27 +41,27 @@ fileName = util.GetParam("-outName", "Solvung")
 -- biological settings	--
 --------------------------
 -- membrane conductances
-g_Na = 1.2e-3		-- in C/m^2/mV/ms = 10^6 S/m^2
-g_K  = 0.36e-3		-- in C/m^2/mV/ms = 10^6 S/m^2
-g_L  = 0.003e-3		-- in C/m^2/mV/ms = 10^6 S/m^2
+g_Na = 1.2e3		-- in S/m^2
+g_K  = 360.0		-- in S/m^2
+g_L  = 3.0			-- in S/m^2
 
--- capacitance
-spec_cap = 1.0e-5	-- in C/mV/m^2 = 10^3 F/m^2
+-- specific capacitance
+spec_cap = 1.0e-2	-- in F/m^2
 
--- resistance
-spec_res = 1.0e6	-- in mV ms m / C = 10^-6 Ohm m
+-- resistivity
+spec_res = 1.0		-- in Ohm m
 
 -- diameter
 Diameter = 1.0e-6	-- in m
 
 -- reversal potentials
-ena = 63.5129		-- in mV
-ek  = -74.1266		-- in mV
+ena = 0.0635129		-- in V
+ek  = -0.0741266	-- in V
 
--- diffusion coefficients
-diff_k 	= 1.0e-12	-- in m^2/ms
-diff_na	= 1.0e-12	-- in m^2/ms
-diff_ca	= 2.2e-13	-- in m^2/ms
+-- diffusion coefficients (in units of m^2/s)
+diff_k 	= 1.0e-9
+diff_na	= 1.0e-9
+diff_ca	= 2.2e-10
 
 -- accuracy for gating params
 ac = 1e-6
@@ -113,7 +113,7 @@ CE:add(HH)
 -- synapses
 syn_handler = NETISynapseHandler()
 syn_handler:set_presyn_subset("PreSynapse")
-syn_handler:set_vmdisc(CE)
+syn_handler:set_ce_object(CE)
 syn_handler:set_activation_timing(
 	0.1,	-- average start time of synaptical activity in ms
 	5,		-- average duration of activity in ms (10)
@@ -200,7 +200,7 @@ time = 0.0
 -- init solution
 u = GridFunction(approxSpace)
 u:set(0.0)
-Interpolate(-63.8167, u, "v")
+Interpolate(-0.0638167, u, "v")
 Interpolate(54.4, u, "k");
 Interpolate(10.0, u, "na");
 Interpolate(5e-5, u, "ca")
@@ -220,11 +220,8 @@ for step = 1,nSteps do
 	print("++++++ POINT IN TIME " .. math.floor((time+dt)/dt+0.5)*dt .. " BEGIN ++++++")
 	
 	-- setup time Disc for old solutions and timestep
-	timeDisc:prepare_step_elem(solTimeSeries, dt)
+	timeDisc:prepare_step(solTimeSeries, dt)
 	
-	-- update presynaptic Vm values (must be done AFTER prep_step_elem)
-	syn_handler:update_presyn()
-
 	-- prepare Newton solver
 	newtonSolver:prepare(u)
 		

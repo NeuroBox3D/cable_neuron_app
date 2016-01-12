@@ -83,7 +83,7 @@ CE = CableEquation("Axon, Dendrite, Soma, PreSynapseEdges, PostSynapseEdges", fa
 -- synapses
 syn_handler = NETISynapseHandler()
 syn_handler:set_presyn_subset("PreSynapse")
-syn_handler:set_vmdisc(CE)
+syn_handler:set_ce_object(CE)
 syn_handler:set_activation_timing(
 	5.0,	-- average start time of synaptical activity in ms
 	2.5,	-- average duration of activity in ms (10)

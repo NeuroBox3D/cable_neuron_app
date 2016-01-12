@@ -12,24 +12,24 @@ ug_load_script("ug_util.lua")
 -- UG4-Standard-Settings
 --------------------------------------------------------------------------------
 dim = util.GetParamNumber("-dim", 3)
-dt = util.GetParamNumber("-dt", 0.01)
-time = 10 -- in ms
+dt = util.GetParamNumber("-dt", 1e-5)
+time = 0.01
 timefaktor = 1/dt
 -- 100 steps = 1ms
 numbersteps = util.GetParamNumber("-nSteps", timefaktor*time)
-StartValue = -65.0
+StartValue = -0.065
 --------------------------------------------------------------------------------
 -- Settings for HH-Fluxes different fluxes are seperated by ","
 --------------------------------------------------------------------------------
 -- constants
-InfluxValue = {1e-13} -- in C/m^2/ms
+InfluxValue = {1e-10} -- in A
 --(4.09897e-06, -7.83906e-08, 1.11741e-06)
 --influx for 4 refines
 InfluxPlacex = {0} --{-2.0e-5}-- in m 
 InfluxPlacey = {0} --{0.0}-- in m
 InfluxPlacez = {0} --{0.0}-- in m
 InfluxStart = {0*timefaktor}--{10*timefaktor}		-- after 10 ms
-InfluxDuration = {1*timefaktor}	-- duration of 1 ms
+InfluxDuration = {1e-3*timefaktor}	-- duration of 1 ms
 Flux_ac = 1e-5
 
 --------------------------------------------------------------------------------
@@ -49,18 +49,18 @@ end
 --------------------------------------------------------------------------------
 -- Settings for HH-Constants
 --------------------------------------------------------------------------------
--- in c/m^2/mV/ms
-g_Na = 1.2e-3
-g_K  = 0.36e-3
-g_L  = 0.003e-3
+-- in S/m^2
+g_Na = 1.2e3
+g_K  = 360.0
+g_L  = 3.0
 -- accuracy because of gating params
 ac = 1e-9
 --------------------------------------------------------------------------------
 -- Settings for Dendrit
 --------------------------------------------------------------------------------
 Diameter = 1.0e-6 -- in m
-spec_cap = 1.0e-5 -- in C/mV/m^2
-spec_res = util.GetParamNumber("-spec_res", 1.0e6) -- in mV ms m / Q
+spec_cap = 1.0e-2 -- in F/m^2
+spec_res = util.GetParamNumber("-spec_res", 1.0) -- in Ohm m
 
 
 --------------------------------------------------------------------------------
@@ -123,7 +123,7 @@ approxSpace:add_fct("ca", "Lagrange", 1)
 --constructor creates every needed concentration out of added Channels from Channel list
 CE = CableEquation("subset")
 CE:set_diameter(Diameter)
-CE:set_diff_coeffs({1.0e-12, 1.0e-12, 2.2e-13}) --m^2/ms
+CE:set_diff_coeffs({1.0e-9, 1.0e-9, 2.2e-10}) --m^2/s
 
 ---[[
 print("Setting influxes")
@@ -164,7 +164,7 @@ step = 0
 -------------------------------------
 
 -- set initial value
-Interpolate(-65.0, u, "v", time)
+Interpolate(-0.065, u, "v", time)
 Interpolate(54.4, u, "k", time);
 Interpolate(10.0, u, "na", time);
 Interpolate(5e-5, u, "ca", time)

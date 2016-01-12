@@ -32,8 +32,8 @@ AssertPluginsLoaded({"SynapseDistributor", "SynapseHandler","HH_Kabelnew"})
 -- parameters steering simulation
 numPreRefs	= util.GetParamNumber("-numPreRefs",	0)
 numRefs		= util.GetParamNumber("-numRefs",		0)
-dt			= util.GetParamNumber("-dt",			0.01) -- in ms
-endTime		= util.GetParamNumber("-endTime",		15.0) -- in ms
+dt			= util.GetParamNumber("-dt",			1e-5) -- in units of s
+endTime		= util.GetParamNumber("-endTime",		0.015) -- in units of s
 nSteps 		= util.GetParamNumber("-nSteps",		endTime/dt)
 
 print(" chosen parameters:")
@@ -60,27 +60,27 @@ filename = filename .. "/sol"
 -- biological settings	--
 --------------------------
 -- membrane conductances
-g_Na = 1.2e-3		-- in C/m^2/mV/ms = 10^6 S/m^2
-g_K  = 0.36e-3		-- in C/m^2/mV/ms = 10^6 S/m^2
-g_L  = 0.003e-3		-- in C/m^2/mV/ms = 10^6 S/m^2
+g_Na = 1.2e3		-- in S/m^2
+g_K  = 360.0		-- in S/m^2
+g_L  = 3.0			-- in S/m^2
 
--- capacitance
-spec_cap = 1.0e-5	-- in C/mV/m^2 = 10^3 F/m^2
+-- specific capacitance (in units of F/m^2)
+spec_cap = 1.0e-2
 
--- resistance
-spec_res = 1.0e6	-- in mV ms m / C = 10^-6 Ohm m
+-- specific resistance
+spec_res = 1.0		-- in Ohm m
 
 -- diameter
 diameter = 1.0e-6	-- in m
 
 -- reversal potentials
-ena = 50.0	--63.5129		-- in mV
-ek  = -77.0	--74.1266		-- in mV
+ena = 0.05	--0.0635129		-- in V
+ek  = -0.077	---0.0741266		-- in V
 
--- diffusion coefficients
-diff_k 	= 1.0e-12	-- in m^2/ms
-diff_na	= 1.0e-12	-- in m^2/ms
-diff_ca	= 2.2e-13	-- in m^2/ms
+-- diffusion coefficients (in units of m^2/s)
+diff_k 	= 1.0e-9
+diff_na	= 1.0e-9
+diff_ca	= 2.2e-10
 
 
 --------------------------------------------------------------------------------
@@ -150,14 +150,14 @@ HH = ChannelHHNernst("v, k, na", "axon")
 
 -- leakage
 --leakAxon = ChannelLeak("v", "axon")
---leakAxon:set_rev_pot(-54.4)
+--leakAxon:set_rev_pot(-0.0544)
 --leakDend = ChannelLeak("v", "dend")
 
 -- synapses
 --[[
 syn_handler = NETISynapseHandler()
 syn_handler:set_presyn_subset("PreSynapse")
-syn_handler:set_vmdisc(VMD)
+syn_handler:set_ce_object(VMD)
 syn_handler:set_activation_timing(
 	0.1,	-- average start time of synaptical activity in ms
 	5,		-- average duration of activity in ms (10)
@@ -188,10 +188,10 @@ VMD:add_channel(HH)
 --  INFO: coords for 31o_pyramidal19aFI.CNG_with_subsets.ugx
 
 --	ELECTRODE STIMULATION near soma: 5pA seem to inervate the pyramidal cell with uniform diameters of 1um
---VMD:set_influx(5e-12, 6.54e-05, 2.665e-05, 3.985e-05, 0.0, 40) -- current given in C/ms
+--VMD:set_influx(5e-9, 6.54e-05, 2.665e-05, 3.985e-05, 0.0, 0.04) -- current given in units of A
 
 --	!!! DO NOT USE!!! ELECTRODE STIMULATION into soma: 5pA seem to enervate the pyramidal cell with attached diameters (also causing backpropagating APs)
---VMD:set_influx(5e-12, 6.9e-06, 3.74e-05, -2.86e-05, 0.0, 40) -- current given in C/ms
+--VMD:set_influx(5e-9, 6.9e-06, 3.74e-05, -2.86e-05, 0.0, 0.04) -- current given in units of A
 
 
 -------------------------------------------
@@ -344,7 +344,7 @@ u:set(0.0)
 -------------------------------------
 
 -- set initial value
-Interpolate(-65.0, u, "v", time)
+Interpolate(-0.065, u, "v", time)
 Interpolate(54.4, u, "k", time);
 Interpolate(10.0, u, "na", time);
 Interpolate(5e-5, u, "ca", time)

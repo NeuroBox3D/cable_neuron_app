@@ -17,29 +17,29 @@ InitUG(3, AlgebraType("CPU", 1));
 -----------------------------
 -- biophysical model setup --
 -----------------------------
--- equilibrium potential (in units of mV)
-v_eq = -65.0
+-- equilibrium potential (in units of V)
+v_eq = -0.065
 
 -- temperature in units of deg Celsius
 temp = 37.0
 
 -- cable equation (here: only potential, no ions)
 CE = CableEquation("Axon, Dendrite, Soma, PreSynapseEdges, PostSynapseEdges", false)
-CE:set_spec_cap(1e-5)		-- specific capacitance (units of 10^3 F/m^2)
-CE:set_spec_res(1.5e6)		-- specific resistance (units of 10^-6 Ohm m)
-CE:set_rev_pot_k(-90.0)			-- reversal potential K (mV)
-CE:set_rev_pot_na(60.0)			-- reversal potential Na (mV)
+CE:set_spec_cap(1e-2)		-- specific capacitance (units of F/m^2)
+CE:set_spec_res(1.5)		-- specific resistance (units of Ohm m)
+CE:set_rev_pot_k(-0.09)			-- reversal potential K (V)
+CE:set_rev_pot_na(0.06)			-- reversal potential Na (V)
 CE:set_temperature_celsius(temp)
 
 -- Hodgkin and Huxley channels --
--- specific membrane conductances (in units 10^6 S/m^2)
-g_k_ax = 4.0e-4	-- axon
-g_k_so = 2.0e-4	-- soma
-g_k_de = 3.0e-5	-- dendrite
+-- specific membrane conductances (in units of S/m^2)
+g_k_ax = 400.0	-- axon
+g_k_so = 200.0	-- soma
+g_k_de = 30.0	-- dendrite
 
-g_na_ax = 3.0e-2
-g_na_so = 1.5e-3
-g_na_de = 4.0e-5
+g_na_ax = 3.0e4
+g_na_so = 1.5e3
+g_na_de = 40.0
 
 HH = ChannelHH("", "Axon, Dendrite, Soma, PreSynapseEdges, PostSynapseEdges")
 HH:set_conductances(g_k_ax, g_na_ax, "Axon, PreSynapseEdges")
@@ -51,12 +51,12 @@ CE:add(HH)
 -- resting potential in each part of the network! -- in our case: -65mV everywhere)
 tmp_fct = math.pow(2.3,(temp-23.0)/10.0)
 leak = ChannelLeak("v", "Axon, Dendrite, Soma, PreSynapseEdges, PostSynapseEdges")
-leak:set_cond(2.0e-4*tmp_fct, "Axon, PreSynapseEdges")
-leak:set_rev_pot(-66.148458, "Axon, PreSynapseEdges")
-leak:set_cond(1.0e-6*tmp_fct, "Soma")
-leak:set_rev_pot(-30.654022, "Soma")
-leak:set_cond(1.0e-6*tmp_fct, "Dendrite, PostSynapseEdges")
-leak:set_rev_pot(-57.803624, "Dendrite, PostSynapseEdges")
+leak:set_cond(200.0*tmp_fct, "Axon, PreSynapseEdges")
+leak:set_rev_pot(-0.066148458, "Axon, PreSynapseEdges")
+leak:set_cond(1.0*tmp_fct, "Soma")
+leak:set_rev_pot(-0.030654022, "Soma")
+leak:set_cond(1.0*tmp_fct, "Dendrite, PostSynapseEdges")
+leak:set_rev_pot(-0.057803624, "Dendrite, PostSynapseEdges")
 CE:add(leak)
 
 -- synapses
@@ -91,8 +91,8 @@ ugEnv = setup_problem_ug4(CE, gridName, neededSubsets)
 simParams = {}
 simParams.v_init = v_eq
 simParams.startTime = 0.0
-simParams.dt = util.GetParamNumber("-dt", 0.02, "integration time step")
-simParams.endTime = util.GetParamNumber("-endTime",	100.0,	"end time of simulation")
+simParams.dt = util.GetParamNumber("-dt", 2e-5, "integration time step (s)")
+simParams.endTime = util.GetParamNumber("-endTime",	0.1,	"end time of simulation (s)")
 simParams.generateVTKOutput = util.HasParamOption("-vtk")
 simParams.vtkFolder = util.GetParam("-outName", "simulation_output")
 simParams.plotStep = util.GetParamNumber("-plotStep",	dt,		"plotting interval")

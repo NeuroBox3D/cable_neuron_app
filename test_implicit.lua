@@ -4,6 +4,9 @@
 -- activating synapses and transmission synapses.	--
 ------------------------------------------------------
 
+exit("This script is not going to work -- parameter and unknwon units of"..
+	 " implicit and explicit cable discretizations do not match!")
+
 -- for profiler output
 SetOutputProfileStats(false)
 
@@ -38,27 +41,27 @@ fileName = fileName.."/"
 -- biological settings	--
 --------------------------
 -- membrane conductances
-g_Na = 1.2e-3		-- in C/m^2/mV/ms = 10^6 S/m^2
-g_K  = 0.36e-3		-- in C/m^2/mV/ms = 10^6 S/m^2
-g_L  = 0.003e-3		-- in C/m^2/mV/ms = 10^6 S/m^2
+g_Na = 1.2e3		-- in S/m^2
+g_K  = 360.0		-- in S/m^2
+g_L  = 3.0			-- in S/m^2
 
--- capacitance
-spec_cap = 1.0e-5	-- in C/mV/m^2 = 10^3 F/m^2
+-- specific capacitance
+spec_cap = 1.0e-2	-- in F/m^2
 
--- resistance
-spec_res = 1.0e6	-- in mV ms m / C = 10^-6 Ohm m
+-- resistivity
+spec_res = 1.0		-- in Ohm m
 
 -- diameter
 diameter = 2.0e-7	-- in m
 
 -- reversal potentials
-ena = 50.0			-- in mV
-ek  = -77.0			-- in mV
+ena = 0.05			-- in V
+ek  = -0.077		-- in V
 
 -- diffusion coefficients
-diff_k 	= 1.0e-12	-- in m^2/ms
-diff_na	= 1.0e-12	-- in m^2/ms
-diff_ca	= 2.2e-13	-- in m^2/ms
+diff_k 	= 1.0e-9	-- in m^2/s
+diff_na	= 1.0e-9	-- in m^2/s
+diff_ca	= 2.2e-10	-- in m^2/s
 
 ----------------------------------
 -- setup approximation space	--

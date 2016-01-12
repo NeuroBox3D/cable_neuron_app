@@ -20,8 +20,8 @@ AssertPluginsLoaded({"SynapseHandler","HH_Kabelnew"})
 -- parameters steering simulation
 numPreRefs	= util.GetParamNumber("-numPreRefs",	0)
 numRefs		= util.GetParamNumber("-numRefs",		0)
-dt			= util.GetParamNumber("-dt",			0.01) -- in ms
-endTime		= util.GetParamNumber("-endTime",		30.0) -- in ms
+dt			= util.GetParamNumber("-dt",			1e-5) -- in ms
+endTime		= util.GetParamNumber("-endTime",		0.03) -- in ms
 nSteps 		= util.GetParamNumber("-nSteps",		endTime/dt)
 pstep		= util.GetParamNumber("-pstep",			dt,		"plotting interval")
 imbFactor	= util.GetParamNumber("-imb",			1.05,	"imbalance factor")
@@ -58,29 +58,29 @@ fileName = util.GetParam("-outName", "Network_dyn_ions")
 
 -- settings are according to T. Branco
 
--- membrane conductances (in units of C/m^2/mV/ms = 10^6 S/m^2)
-g_k_ax = 4.0e-4	-- axon
-g_k_so = 2.0e-4	-- soma
-g_k_de = 3.0e-5	-- dendrite
+-- membrane conductances (in units of S/m^2)
+g_k_ax = 400.0	-- axon
+g_k_so = 200.0	-- soma
+g_k_de = 30.0	-- dendrite
 
-g_na_ax = 3.0e-2
-g_na_so = 1.5e-3
-g_na_de = 4.0e-5
+g_na_ax = 3.0e4
+g_na_so = 1.5e3
+g_na_de = 40.0
 
-g_l_ax = 2.0e-4
-g_l_so = 1.0e-6
-g_l_de = 1.0e-6
+g_l_ax = 200.0
+g_l_so = 1.0
+g_l_de = 1.0
 
--- capacitance (in units of C/mV/m^2 = 10^3 F/m^2)
-spec_cap = 1.0e-5
+-- specific capacitance (in units of F/m^2)
+spec_cap = 1.0e-2
 
--- resistance (in units of mV ms m / C = 10^-6 Ohm m)
-spec_res = 1.5e6
+-- specific resistance (in units of Ohm m)
+spec_res = 1.5
 
--- reversal potentials (in units of mV)
-e_k  = -90.0
-e_na = 60.0
-e_ca = 140.0
+-- reversal potentials (in units of V)
+e_k  = -0.09
+e_na = 0.06
+e_ca = 0.14
 
 -- equilibrium concentrations (in units of mM)
 -- comment: these concentrations will not yield Nernst potentials
@@ -94,13 +94,13 @@ k_in   = 140.0
 na_in  = 10.0
 ca_in  = 5e-5
 
--- equilibrium potential (in units of mV)
-v_eq = -65.0
+-- equilibrium potential (in units of V)
+v_eq = -0.065
 
--- diffusion coefficients (in units of m^2/ms)
-diff_k 	= 1.0e-12
-diff_na	= 1.0e-12
-diff_ca	= 2.2e-13
+-- diffusion coefficients (in units of m^2/s)
+diff_k 	= 1.0e-9
+diff_na	= 1.0e-9
+diff_ca	= 2.2e-10
 
 -- temperature in units of deg Celsius
 temp = 37.0
@@ -219,14 +219,14 @@ if withIons == true then
 --Axon Settings------------------------------------------------------------------------------------------------
 		-- Na/K Pump
 		nak = Na_K_Pump("", "Axon, PreSynapseEdges")
-		nak:set_IMAX_P(0.0026481515257588432)
+		nak:set_max_flux(2.6481515257588432)	-- mol/(m^2*s)
 		CE:add(nak)
 		
 		-- K-Leak
 		kLeak = IonLeakage("k", "Axon, PreSynapseEdges")
 		kLeak:set_leaking_quantity("k")
-		leakKConst = 0.0000000040675975261062531 +	-- HH (mol/ms/m^2)
-					 -0.00000000010983795579882983 	-- Na/K (mol/ms//m^2)
+		leakKConst = 0.0000040675975261062531 +		-- HH (mol/s/m^2)
+					 -0.00000010983795579882983 	-- Na/K (mol/s/m^2)
 		kLeak:set_perm(leakKConst, k_in, k_out, v_eq, 1)
 		--print("leakK: " .. leakKConst)
 		CE:add(kLeak)
@@ -234,28 +234,28 @@ if withIons == true then
 --Soma Settings------------------------------------------------------------------------------------------------	
 		-- Na/K Pump	
 		nakso = Na_K_Pump("", "Soma")
-		nakso:set_IMAX_P(6.05974e-10/4.57658e-06)
+		nakso:set_max_flux(6.05974e-7/4.57658e-06)	-- mol/(m^2*s)
 		CE:add(nakso)
 		
 		-- K-Leak
 		kLeakso = IonLeakage("k", "Soma")
 		kLeakso:set_leaking_quantity("k")
-		leakKsoConst = 2.0338e-09 +	-- HH (mol/ms/m^2)
-					 -(2.0/3.0 * 6.05974e-10) 	-- Na/K (mol/ms//m^2)
+		leakKsoConst = 2.0338e-06 +				-- HH (mol/s/m^2)
+					 -(2.0/3.0 * 6.05974e-7) 	-- Na/K (mol/s/m^2)
 		kLeakso:set_perm(leakKsoConst, k_in, k_out, v_eq, 1)
 		CE:add(kLeakso)
 		
 --Dendrit Settings------------------------------------------------------------------------------------------------
 		-- Na/K Pump		
 		nakdend = Na_K_Pump("", "Dendrite, PostSynapseEdges")
-		nakdend:set_IMAX_P(1.61593e-11/4.57658e-06)
+		nakdend:set_max_flux(1.61593e-8/4.57658e-06)	-- mol/(m^2*s)
 		CE:add(nakdend)
 		
 		-- K-Leak
 		kLeakdend = IonLeakage("k", "Dendrite, PostSynapseEdges")
 		kLeakdend:set_leaking_quantity("k")
-		leakKdendConst = 3.0507e-10 +	-- HH (mol/ms/m^2)
-					 -(2.0/3.0 * 1.61593e-11) 	-- Na/K (mol/ms//m^2)
+		leakKdendConst = 3.0507e-7 +			-- HH (mol/s/m^2)
+					 -(2.0/3.0 * 1.61593e-8) 	-- Na/K (mol/s/m^2)
 		kLeakdend:set_perm(leakKdendConst, k_in, k_out, v_eq, 1)
 		CE:add(kLeakdend)
 		
@@ -266,16 +266,16 @@ if withIons == true then
 		
 		--leakpart axon
 		leak:set_cond(g_l_ax*tmp_fct, "Axon, PreSynapseEdges")
-		leak:set_rev_pot(-66.210342630746467, "Axon, PreSynapseEdges")
+		leak:set_rev_pot(-0.066210342630746467, "Axon, PreSynapseEdges")
 		
 		--leakpart soma
 		leak:set_cond(g_l_so*tmp_fct, "Soma")
-		leak:set_rev_pot(-22.074360525636, "Soma")
+		leak:set_rev_pot(-0.022074360525636, "Soma")
 		print("neu: " .. ((0.000137764 - (g_l_so*tmp_fct *65)) / (-g_l_so*tmp_fct)))
 		
 		--leakpart dendSubs
 		leak:set_cond(g_l_de*tmp_fct, "Dendrite, PostSynapseEdges")
-		leak:set_rev_pot(-56.314322586687, "Dendrite, PostSynapseEdges")
+		leak:set_rev_pot(-0.056314322586687, "Dendrite, PostSynapseEdges")
 		print("neu: " .. ((2.78755e-05 - (g_l_de*tmp_fct *65)) / (-g_l_de*tmp_fct)))
 		--Adding Channel
 		CE:add(leak)
@@ -286,11 +286,11 @@ else
 		
 		leak = ChannelLeak("v", "Axon, PreSynapseEdges, Soma, Dendrite, PostSynapseEdges")
 		leak:set_cond(g_l_ax*tmp_fct, "Axon, PreSynapseEdges")
-		leak:set_rev_pot(-66.148458, "Axon, PreSynapseEdges")
+		leak:set_rev_pot(-0.066148458, "Axon, PreSynapseEdges")
 		leak:set_cond(g_l_so*tmp_fct, "Soma")
-		leak:set_rev_pot(-30.654022, "Soma")
+		leak:set_rev_pot(-0.030654022, "Soma")
 		leak:set_cond(g_l_de*tmp_fct, "Dendrite, PostSynapseEdges")
-		leak:set_rev_pot(-57.803624, "Dendrite, PostSynapseEdges")
+		leak:set_rev_pot(-0.057803624, "Dendrite, PostSynapseEdges")
 		
 		CE:add(leak)
 end
@@ -298,7 +298,7 @@ end
 -- synapses
 syn_handler = NETISynapseHandler()
 syn_handler:set_presyn_subset("PreSynapse")
-syn_handler:set_vmdisc(CE)
+syn_handler:set_ce_object(CE)
 syn_handler:set_activation_timing(
 	5.0,	-- average start time of synaptical activity in ms
 	2.5,	-- average duration of activity in ms (10)

@@ -20,8 +20,8 @@ AssertPluginsLoaded({"cable_neuron"})
 -- parameters steering simulation
 numPreRefs	= util.GetParamNumber("-numPreRefs",	0)
 numRefs		= util.GetParamNumber("-numRefs",		0)
-dt			= util.GetParamNumber("-dt",			0.01) -- in ms
-endTime		= util.GetParamNumber("-endTime",		100.0) -- in ms
+dt			= util.GetParamNumber("-dt",			1e-5) -- in units of s
+endTime		= util.GetParamNumber("-endTime",		0.1) -- in units of s
 nSteps 		= util.GetParamNumber("-nSteps",		endTime/dt)
 pstep		= util.GetParamNumber("-pstep",			dt,		"plotting interval")
 imbFactor	= util.GetParamNumber("-imb",			1.05,	"imbalance factor")
@@ -59,29 +59,29 @@ fileName = fileName.."/"
 
 -- settings are according to T. Branco
 
--- membrane conductances (in units of C/m^2/mV/ms = 10^6 S/m^2)
-g_k_ax = 4.0e-4	-- axon
-g_k_so = 2.0e-4	-- soma
-g_k_de = 3.0e-5	-- dendrite
+-- membrane conductances (in units of S/m^2)
+g_k_ax = 400.0	-- axon
+g_k_so = 200.0	-- soma
+g_k_de = 30.0	-- dendrite
 
-g_na_ax = 3.0e-2
-g_na_so = 1.5e-3
-g_na_de = 4.0e-5
+g_na_ax = 3.0e4
+g_na_so = 1.5e3
+g_na_de = 40.0
 
-g_l_ax = 2.0e-4
-g_l_so = 1.0e-6
-g_l_de = 1.0e-6
+g_l_ax = 200.0
+g_l_so = 1.0
+g_l_de = 1.0
 
--- capacitance (in units of C/mV/m^2 = 10^3 F/m^2)
-spec_cap = 1.0e-5
+-- specific capacitance (in units of F/m^2)
+spec_cap = 1.0e-2
 
--- resistance (in units of mV ms m / C = 10^-6 Ohm m)
-spec_res = 1.5e6
+-- resistivity (in units of Ohm m)
+spec_res = 1.5
 
--- reversal potentials (in units of mV)
-e_k  = -90.0
-e_na = 60.0
-e_ca = 140.0
+-- reversal potentials (in units of V)
+e_k  = -0.09
+e_na = 0.06
+e_ca = 0.14
 
 -- equilibrium concentrations (in units of mM)
 -- comment: these concentrations will not yield Nernst potentials
@@ -95,13 +95,13 @@ k_in   = 140.0
 na_in  = 10.0
 ca_in  = 5e-5
 
--- equilibrium potential (in units of mV)
-v_eq = -65.0
+-- equilibrium potential (in units of V)
+v_eq = -0.065
 
--- diffusion coefficients (in units of m^2/ms)
-diff_k 	= 1.0e-12
-diff_na	= 1.0e-12
-diff_ca	= 2.2e-13
+-- diffusion coefficients (in units of m^2/s)
+diff_k 	= 1.0e-9
+diff_na	= 1.0e-9
+diff_ca	= 2.2e-10
 
 -- temperature in units of deg Celsius
 temp = 37.0
@@ -233,24 +233,24 @@ tmp_fct = math.pow(2.3,(temp-23.0)/10.0)
 
 leak = ChannelLeak("v", ss_axon..", "..ss_dend..", "..ss_soma..", PreSynapseEdges, PostSynapseEdges")
 leak:set_cond(g_l_ax*tmp_fct, ss_axon..", PreSynapseEdges")
-leak:set_rev_pot(-66.148458, ss_axon..", PreSynapseEdges")
+leak:set_rev_pot(-0.066148458, ss_axon..", PreSynapseEdges")
 leak:set_cond(g_l_so*tmp_fct, ss_soma)
-leak:set_rev_pot(-30.654022, ss_soma)
+leak:set_rev_pot(-0.030654022, ss_soma)
 leak:set_cond(g_l_de*tmp_fct, ss_dend..", PostSynapseEdges")
-leak:set_rev_pot(-57.803624, ss_dend..", PostSynapseEdges")
+leak:set_rev_pot(-0.057803624, ss_dend..", PostSynapseEdges")
 
 CE:add(leak)
 
 -- synapses
 syn_handler = NETISynapseHandler()
 syn_handler:set_presyn_subset("PreSynapse")
-syn_handler:set_vmdisc(CE)
+syn_handler:set_ce_object(CE)
 syn_handler:set_activation_timing(
-	0.0,	-- average start time of synaptical activity in ms
-	2.4,	-- average duration of activity in ms (10)
-	0.0,	-- deviation of start time in ms
-	0.1,	-- deviation of duration in ms
-	1.2e-3)	-- peak conductivity in units of uS (6e-4)
+	0.0,	-- average start time of synaptical activity in s
+	0.0024,	-- average duration of activity in s
+	0.0,	-- deviation of start time in s
+	0.0001,	-- deviation of duration in s
+	1.2e-3)	-- peak conductivity in units of uS
 CE:set_synapse_handler(syn_handler)
 
 -- domain discretization

@@ -76,8 +76,8 @@ AssertPluginsLoaded({"SynapseDistributor", "SynapseHandler","HH_Kabelnew"})
 -- parameters steering simulation
 numPreRefs	= util.GetParamNumber("-numPreRefs",	0)
 numRefs		= util.GetParamNumber("-numRefs",		0)
-dt			= util.GetParamNumber("-dt",			0.01) -- in ms
-endTime		= util.GetParamNumber("-endTime",	  10000.0) -- in ms
+dt			= util.GetParamNumber("-dt",			1e-5) -- in s
+endTime		= util.GetParamNumber("-endTime",	 	0.01)
 nSteps 		= util.GetParamNumber("-nSteps",		endTime/dt)
 pstep		= util.GetParamNumber("-pstep",			dt,		"plotting interval")
 
@@ -118,29 +118,29 @@ measOutCa = assert(io.open(measFileCa, "w"))
 --------------------------
 -- settings are according to T. Branco
 
--- membrane conductances (in units of C/m^2/mV/ms = 10^6 S/m^2)
-g_k_ax = 4.0e-4	-- axon
-g_k_so = 2.0e-4	-- soma
-g_k_de = 3.0e-5	-- dendrite
+-- membrane conductances (in units of S/m^2)
+g_k_ax = 400.0	-- axon
+g_k_so = 200.0	-- soma
+g_k_de = 30		-- dendrite
 
-g_na_ax = 3.0e-2
-g_na_so = 1.5e-3
-g_na_de = 4.0e-5
+g_na_ax = 3.0e4
+g_na_so = 1.5e3
+g_na_de = 40.0
 
-g_l_ax = 2.0e-4
-g_l_so = 1.0e-6
-g_l_de = 1.0e-6
+g_l_ax = 200.0
+g_l_so = 1.0
+g_l_de = 1.0
 
--- capacitance (in units of C/mV/m^2 = 10^3 F/m^2)
-spec_cap = 1.0e-5
+-- specific capacitance (in units of F/m^2)
+spec_cap = 1.0e-2
 
--- resistance (in units of mV ms m / C = 10^-6 Ohm m)
-spec_res = 1.5e6
+-- resistivity (in units of Ohm m)
+spec_res = 1.5
 
--- reversal potentials (in units of mV)
-e_k  = -90.0
-e_na = 60.0
-e_ca = 140.0
+-- reversal potentials (in units of V)
+e_k  = -0.09
+e_na = 0.06
+e_ca = 0.14
 
 -- equilibrium concentrations (in units of mM)
 -- comment: these concentrations will not yield Nernst potentials
@@ -154,13 +154,13 @@ k_in   = 140.0
 na_in  = 10.0
 ca_in  = 5e-5
 
--- equilibrium potential (in units of mV)
-v_eq = -65.0
+-- equilibrium potential (in units of V)
+v_eq = -0.065
 
--- diffusion coefficients (in units of m^2/ms)
-diff_k 	= 1.0e-12
-diff_na	= 1.0e-12
-diff_ca	= 2.2e-13
+-- diffusion coefficients (in units of m^2/s)
+diff_k 	= 1.0e-9
+diff_na	= 1.0e-9
+diff_ca	= 2.2e-10
 
 -- temperature in units of deg Celsius
 temp = 37.0
@@ -243,24 +243,24 @@ tmp_fct = math.pow(2.3,(temp-23.0)/10.0)
 
 leak = ChannelLeak("v", "axon, soma, dendrite, apical_dendrite")
 leak:set_cond(g_l_ax*tmp_fct, "axon")
-leak:set_rev_pot(-66.148458, "axon")
+leak:set_rev_pot(-0.066148458, "axon")
 leak:set_cond(g_l_so*tmp_fct, "soma")
-leak:set_rev_pot(-30.654022, "soma")
+leak:set_rev_pot(-0.030654022, "soma")
 leak:set_cond(g_l_de*tmp_fct, ss_dend)
-leak:set_rev_pot(-57.803624, ss_dend)
+leak:set_rev_pot(-0.057803624, ss_dend)
 
 CE:add(leak)
 
 
 --Calcium dynamics
-vdcc = VDCC_BG_Cable("ca", "dendrite, soma, apical_dendrite")
-ncx = Ca_NCX("v, ca", "dendrite, soma, apical_dendrite")
-pmca = Ca_PMCA("v, ca", "dendrite, soma, apical_dendrite")
+vdcc = VDCC_BG_cable("ca", "dendrite, soma, apical_dendrite")
+ncx = NCX_cable("v, ca", "dendrite, soma, apical_dendrite")
+pmca = PMCA_cable("v, ca", "dendrite, soma, apical_dendrite")
 caLeak = IonLeakage("", "dendrite, soma, apical_dendrite")
 caLeak:set_leaking_quantity("ca")
-leakCaConst = -3.4836065573770491e-12 +	-- single pump PMCA flux density (mol/ms/m^2)
-			  -1.0135135135135137e-12 +	-- single pump NCX flux (mol/ms//m^2)
-			  3.3017662162505882e-14
+leakCaConst = -3.4836065573770491e-9 +	-- single pump PMCA flux density (mol/s/m^2)
+			  -1.0135135135135137e-9 +	-- single pump NCX flux (mol/s/m^2)
+			  3.3017662162505882e-11
 caLeak:set_perm(leakCaConst, ca_in, ca_out, v_eq, 2)
 
 CE:add(ncx)
@@ -271,7 +271,7 @@ CE:add(caLeak)
 
 -- synapses
 syn_handler = NETISynapseHandler()
-syn_handler:set_vmdisc(CE)
+syn_handler:set_ce_object(CE)
 syn_handler:set_activation_timing(
 	avg_start,	-- average start time of synaptical activity in ms
 	avg_dur,	-- average duration of activity in ms (10)
