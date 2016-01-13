@@ -246,10 +246,10 @@ syn_handler = NETISynapseHandler()
 syn_handler:set_presyn_subset("PreSynapse")
 syn_handler:set_ce_object(CE)
 syn_handler:set_activation_timing(
-	0.0,	-- average start time of synaptical activity in s
-	0.0024,	-- average duration of activity in s
-	0.0,	-- deviation of start time in s
-	0.0001,	-- deviation of duration in s
+	0.0,	-- average start time of synaptical activity in ms
+	2.4,	-- average duration of activity in ms
+	0.0,	-- deviation of start time in ms
+	0.1,	-- deviation of duration in ms
 	1.2e-3)	-- peak conductivity in units of uS
 CE:set_synapse_handler(syn_handler)
 
