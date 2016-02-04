@@ -33,7 +33,7 @@ rank = ProcRank()
 rankAsString = string.format("%02d", rank)
 
 --[[
-sd = SynapseDistributor("grids/13-L3pyr-77.CNG.ugx", "../apps/cable/Ca_dyms/grids/13-L3pyr-77.CNG_syn_p"..rankAsString..".ugx", true)
+sd = SynapseDistributor("grids/13-L3pyr-77.CNG.ugx", "../apps/cable_neuron_app/grids/13-L3pyr-77.CNG_syn_p"..rankAsString..".ugx", true)
 sd:place_synapses({0.0, 0.0, 0.5, 0.5}, num_synapses)
 
 sd:export_grid()
@@ -43,14 +43,14 @@ sd:export_grid()
 --------------------------------------------------------------------------------
 -- load cell with fixed alpha synapse distribution
 ---[[
---gridName = util.GetParam("-grid", "../apps/cable/Ca_dyms/grids/13-L3pyr-77.CNG_syn.ugx")
+--gridName = util.GetParam("-grid", "../apps/cable_neuron_app/grids/13-L3pyr-77.CNG_syn.ugx")
 
 deg_factor = util.GetParamNumber("-degFac", 0.5)
 -- ensure correct number:
 deg_factor = deg_factor + 0.5/num_synapses
 
-sd = SynapseDistributor("../apps/cable/Ca_dyms/grids/13-L3pyr-77.CNG_syn_p"..rankAsString..".ugx",
-						"../apps/cable/Ca_dyms/grids/13-L3pyr-77.CNG_syn_p"..rankAsString.."_deg.ugx", false)
+sd = SynapseDistributor("../apps/cable_neuron_app/grids/13-L3pyr-77.CNG_syn_p"..rankAsString..".ugx",
+						"../apps/cable_neuron_app/grids/13-L3pyr-77.CNG_syn_p"..rankAsString.."_deg.ugx", false)
 sd:degenerate_uniform(deg_factor, 2) -- first factor means: newNumber = (1-factor)*oldNumber
 sd:degenerate_uniform(deg_factor, 3) -- second param is the subset index
 sd:print_status()
@@ -62,7 +62,7 @@ sd:export_grid()
 --------------------------------------------------------------------------------
 -- UG4-Standard-Settings
 --------------------------------------------------------------------------------
-gridName = util.GetParam("-grid", "../apps/cable/Ca_dyms/grids/13-L3pyr-77.CNG_syn_p"..rankAsString.."_deg.ugx")
+gridName = util.GetParam("-grid", "../apps/cable_neuron_app/grids/13-L3pyr-77.CNG_syn_p"..rankAsString.."_deg.ugx")
 
 print(gridName);
 
@@ -71,7 +71,7 @@ dim = 3
 
 -- init UG
 InitUG(dim, AlgebraType("CPU", 1));
-AssertPluginsLoaded({"SynapseDistributor", "SynapseHandler","HH_Kabelnew"})
+AssertPluginsLoaded({"cable_neuron"})
 
 -- parameters steering simulation
 numPreRefs	= util.GetParamNumber("-numPreRefs",	0)
@@ -335,6 +335,7 @@ uOld = u:clone()
 solTimeSeries = SolutionTimeSeries()
 solTimeSeries:push(uOld, time)
 
+min_dt = 1e-10
 curr_dt = dt
 dtred = 2
 
@@ -352,6 +353,10 @@ while endTime-time > 0.001*curr_dt do
 	-- (this needs to be done AFTER prepare_step as channels are updated there)
 	dtChanged = false
 	cfl = CE:estimate_cfl_cond(solTimeSeries:latest())
+	if cfl < min_dt then
+		print("Required time step size is lower than admissible. Aborting.")
+		exit()
+	end
 	print("estimated CFL condition: dt < " .. cfl)
 	while (curr_dt > cfl) do
 		curr_dt = curr_dt/dtred
@@ -392,6 +397,10 @@ while endTime-time > 0.001*curr_dt do
 	ilu:set_disable_preprocessing(matrixIsConst)
 	if ApplyLinearSolver(linOp, u, b, cgSolver) == false then
 		print("Could not apply linear solver.");
+		if (generateVTKoutput) then 
+			out:write_time_pvd(filename.."vtk/solution", u) 
+		end
+		exit()
 	end
 	
 	-- log vm and calcium at soma
@@ -418,8 +427,8 @@ while endTime-time > 0.001*curr_dt do
 	time = solTimeSeries:time(0) + curr_dt
 	
 	-- vtk output
-	if (generateVTKoutput) then
-		if math.abs(time/pstep - math.floor(time/pstep+0.5)) < 1e-5 then 
+	if (generateVTKoutput) then 
+		if math.abs(time/pstep - math.floor(time/pstep+0.5)) < 1e-5 then
 			out:print(filename.."vtk/solution", u, math.floor(time/pstep+0.5), time)
 		end
 	end
