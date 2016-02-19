@@ -120,6 +120,13 @@ else
 end
 dom = util.CreateDomain(gridName, numPreRefs, neededSubsets)
 
+-- check domain is acyclic
+isAcyclic = is_acyclic(dom)
+if not isAcyclic then
+	print("Domain is not acyclic!")
+	exit()
+end
+
 balancer.partitioner = "parmetis"
 
 -- balancer.firstDistLvl = -1 will cause immediate distribution to all procs if redistSteps == 0,
