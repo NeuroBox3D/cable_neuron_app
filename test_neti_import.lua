@@ -151,9 +151,9 @@ else
 end
 dom = util.CreateDomain(gridName, numPreRefs, neededSubsets)
 
--- check domain is acyclic
-isAcyclic = is_acyclic(dom)
-test.require(isAcyclic, "Domain is not acyclic.")
+-- check domain
+test_result = check_domain(dom, 2) -- 2 for maximum verbosity
+test.require(test_result == 0, "Domain is not sound (error code "..test_result..").")
 
 balancer.partitioner = "parmetis"
 
@@ -185,6 +185,8 @@ if loadBalancer ~= nil then
 	balancer.RefineAndRebalanceDomain(dom, numRefs, loadBalancer)
 
 	print("Edge cut on base level: "..balancer.defaultPartitioner:edge_cut_on_lvl(0))
+	test.require(balancer.defaultPartitioner:edge_cut_on_lvl(0) == 0, "Partitioning cuts a neuron.")
+	
 	loadBalancer:estimate_distribution_quality()
 	loadBalancer:print_quality_records()
 end
