@@ -1,7 +1,7 @@
 ug_load_script("ug_util.lua")
 
 -- Gathering standard values
-infile			=	util.GetParam("-infile", "grids/31o_pyramidal19aFI.CNG_with_subsets_and_diams.ugx")
+infile			=	util.GetParam("-infile", "grids/31o_pyramidal19aFI.CNG.ugx")
 --infile			=	util.GetParam("-infile", "grids/test_cell_small_ref_1.ugx")
 outfile			=	util.GetParam("-outfile", "grids/test_out.ugx")
 
@@ -15,17 +15,17 @@ dom = util.CreateDomain(infile, numRefs, neededSubsets)
 
 -- Instantiate SynapseDistributor object
 --synDistr = SynapseDistributor(dom, "grids/grid_out.ugx")
-synDistr = SynapseDistributor(infile, outfile)
+synDistr = SynapseDistributor(infile, outfile, false)
 
 --Status of grid before placing of synapses
 synDistr:print_status()
 print("Place synapses uniform.")
-synDistr:place_synapses_uniform(1, 1000)
+synDistr:place_synapses_uniform(1, 1000, 3)
 synDistr:print_status()
 synDistr:degenerate_uniform(0.5, 1)
 synDistr:print_status()
 
-synDistr:export_grid()
+print(synDistr:export_grid())
 
 -- PARAMETER SET FOR ACTIVITY TIMING
 --[[
