@@ -55,6 +55,7 @@ synDistr:place_synapses_uniform(exp2presyns:get_synapses())
 --synDistr:print_status()
 --synDistr:degenerate_uniform(0.5, 1)
 synDistr:print_status()
+
 print(synDistr:export_grid())
 
 -- PARAMETER SET FOR ACTIVITY TIMING
