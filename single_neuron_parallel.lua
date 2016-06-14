@@ -169,8 +169,9 @@ temp = 37.0
 --------------------------------------------------------------------------------
 -- Create, Load, Refine Domain
 --------------------------------------------------------------------------------
+integer_minus1 = 4294967295 -- on my arch, this is 2^32 -1
 dom = Domain()
-LoadDomain(dom, gridName, rank)
+LoadDomain(dom, gridName, integer_minus1) -- means: load on every proc
 
 if numRefs > 0 then
 	local refiner = GlobalDomainRefiner(dom)
