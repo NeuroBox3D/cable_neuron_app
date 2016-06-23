@@ -20,44 +20,6 @@ if not cell == "12-L3pyr" or not cell == "31o_pyr" then
 end
 
 print("cell specs works")
---------------------------------------------------------------------------------
--- Synapse distributions via plugin by Lukas Reinhardt
---------------------------------------------------------------------------------
-num_synapses = util.GetParamNumber("-nSyn", 140)
----[[
-if cell == "12-L3pyr" then
-	print("first")
-	sd = SynapseDistributor("grids/13-L3pyr-77.CNG.ugx", "../apps/cable/Ca_dyms/grids/13-L3pyr-77.CNG_syn.ugx", true)
-	sd:place_synapses({0.0, 0.0, 0.5, 0.5}, num_synapses)
-else
-	print("second")
-	sd = SynapseDistributor("grids/31o_pyramidal19aFI.CNG_diams.ugx", "../apps/cable/Ca_dyms/grids/31o_pyramidal19aFI.CNG_diams_syn.ugx", true)
-	sd:place_synapses({0.0, 1.0, 0.0}, num_synapses)
-end
-
-sd:print_status()
-sd:export_grid()
---]]
---------------------------------------------------------------------------------
--- Synapse degeneration
---------------------------------------------------------------------------------
--- load cell with fixed alpha synapse distribution
----[[
---gridName = util.GetParam("-grid", "../apps/cable/Ca_dyms/grids/13-L3pyr-77.CNG_syn.ugx")
-
-deg_factor = util.GetParamNumber("-degFac", 0.5)
--- ensure correct number:
-deg_factor = deg_factor + 0.5/num_synapses
-
-sd = SynapseDistributor("../apps/cable/Ca_dyms/grids/13-L3pyr-77.CNG_syn.ugx", "../apps/cable/Ca_dyms/grids/13-L3pyr-77.CNG_syn_deg.ugx", false)
-sd:print_status()
-sd:degenerate_uniform(deg_factor, 2) -- first factor means: newNumber = (1-factor)*oldNumber
-sd:degenerate_uniform(deg_factor, 3) -- second param is the subset index
-sd:print_status()
-sd:export_grid()
---gridName = util.GetParam("-grid", "grids/13-L3pyr-77.CNG_a30synch500.ugx")
---]]
-
 
 --------------------------------------------------------------------------------
 -- UG4-Standard-Settings
@@ -83,7 +45,7 @@ dim = 3
 
 -- init UG
 InitUG(dim, AlgebraType("CPU", 1));
-AssertPluginsLoaded({"SynapseDistributor", "SynapseHandler","HH_Kabelnew"})
+AssertPluginsLoaded({"cable_neuron", "NeuronalTopologyImporter"})
 
 -- parameters steering simulation
 numPreRefs	= util.GetParamNumber("-numPreRefs",	0)
@@ -194,16 +156,35 @@ dom = util.CreateAndDistributeDomain(gridName, numRefs, numPreRefs, neededSubset
 
 --------------------------------------------------------------------------------
 -- Synapse distributions via plugin by Lukas Reinhardt
+-- (SplitSynapses)
 --------------------------------------------------------------------------------
+--30 alphasynapses (15 post- and 15 presynapses)
+alphasyns = AlphaSynapses(0,15)
+alphasyns:set_mean_gMax(3)
+alphasyns:set_dev_gMax(1)
+alphasyns:set_mean_onset(2)
+alphasyns:set_dev_onset(0.5)
+alphasyns:set_mean_tau(1)
+alphasyns:set_dev_tau(0.3)
+alphasyns:set_mean_e(0.5)
+alphasyns:set_dev_e(0.1)
 
-----sd = SynapseDistributor(dom, "grids/grid_out.ugx", true)
---sd:place_synapses_uniform(100)
---sd:place_synapses_uniform(num_synapses)
---sd:place_synapses_uniform(2, num_synapses)
-----sd:place_synapses({0.0, 0.0, 0.5, 0.5}, num_synapses)
---sd:set_activation_timing(avg_start, avg_dur, dev_start, dev_dur)
-----sd:print_status()
+--60 exp2synapses
+exp2syns = Exp2Synapses(14,30)
+exp2syns:set_mean_tau1(3)
+exp2syns:set_dev_tau1(1)
+exp2syns:set_mean_tau2(4)
+exp2syns:set_dev_tau2(1)
+exp2syns:set_mean_e(5)
+exp2syns:set_dev_e(0.5)
+exp2syns:set_mean_w(1)
+exp2syns:set_dev_w(0.2)
 
+-- Instantiate SplitSynapseDistributor object and distribute synapses on the grid
+synDistr = SplitSynapseDistributor(gridName, gridName.."_out.ugx", false)
+synDistr:place_synapses_uniform(alphasyns:get_synapses())
+synDistr:place_synapses_uniform(exp2syns:get_synapses())
+print(synDistr:export_grid())
 
 --------------------------------------------------------------------------------
 -- Distribute Domain
@@ -316,7 +297,7 @@ CE:add(leakDend)
 
 
 -- synapses
-syn_handler = NETISynapseHandler()
+syn_handler = SplitSynapseHandler()
 --syn_handler:set_presyn_subset("PreSynapse")
 syn_handler:set_ce_object(CE)
 syn_handler:set_activation_timing(
