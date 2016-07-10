@@ -33,9 +33,9 @@ print("cell specs works")
 --gridName = util.GetParam("-grid", "grids/13-L3pyr-77.CNG.ugx")
 
 if cell == "12-L3pyr" then
-	gridName = util.GetParam("-grid", "../apps/cable/Ca_dyms/grids/13-L3pyr-77.CNG_syn_deg.ugx")
+	gridName = util.GetParam("-grid", "grids/13-L3pyr-77.CNG.ugx")
 else
-	gridName = util.GetParam("-grid", "31o_pyramidal19aFI.CNG_diams_syn.ugx")
+	gridName = util.GetParam("-grid", "grids/31o_pyramidal19aFI.CNG_diams_syn.ugx")
 end
 
 print(gridName);
@@ -51,7 +51,7 @@ AssertPluginsLoaded({"cable_neuron", "NeuronalTopologyImporter"})
 numPreRefs	= util.GetParamNumber("-numPreRefs",	0)
 numRefs		= util.GetParamNumber("-numRefs",		0)
 dt			= util.GetParamNumber("-dt",			1e-5) -- in s
-endTime		= util.GetParamNumber("-endTime",	  	10.0) -- in s
+endTime		= util.GetParamNumber("-endTime",	  	1.0) -- in s
 nSteps 		= util.GetParamNumber("-nSteps",		endTime/dt)
 pstep		= util.GetParamNumber("-pstep",			dt,		"plotting interval")
 
@@ -67,6 +67,46 @@ avg_start = util.GetParamNumber("-avgStart"	,  30.0)
 avg_dur = util.GetParamNumber(	"-avgDur"	,   2.4)
 dev_start = util.GetParamNumber("-devStart"	,  15.0)
 dev_dur = util.GetParamNumber(	"-devDur"	,   0.0)
+
+
+
+--------------------------------------------------------------------------------
+-- Synapse distributions via plugin by Lukas Reinhardt
+-- (SplitSynapses)
+--------------------------------------------------------------------------------
+--30 alphasynapses (15 post- and 15 presynapses)
+alphasyns = AlphaSynapses(0, 200)
+alphasyns:set_mean_gMax(1.2e-3)
+alphasyns:set_dev_gMax(1e-4)
+alphasyns:set_mean_onset(0.001)
+alphasyns:set_dev_onset(1e-7)
+alphasyns:set_mean_tau(0.01)
+alphasyns:set_dev_tau(1e-7)
+alphasyns:set_mean_e(0.01)
+alphasyns:set_dev_e(1e-7)
+
+--60 exp2synapses not used for now
+exp2syns = Exp2Synapses(14,30)
+exp2syns:set_mean_tau1(3)
+exp2syns:set_dev_tau1(1)
+exp2syns:set_mean_tau2(4)
+exp2syns:set_dev_tau2(1)
+exp2syns:set_mean_e(5)
+exp2syns:set_dev_e(0.5)
+exp2syns:set_mean_w(1)
+exp2syns:set_dev_w(0.2)
+
+gridSyn = "grids/13-L3pyr-77.CNG.syn.ugx"
+-- Instantiate SplitSynapseDistributor object and distribute synapses on the grid
+synDistr = SplitSynapseDistributor(gridName, gridSyn, false)
+synDistr:place_synapses_uniform(alphasyns:get_synapses())
+--synDistr:place_synapses_uniform(exp2syns:get_synapses())
+synDistr:print_status()
+print(synDistr:export_grid())
+
+gridName = gridSyn
+
+
 
 -- specify "-verbose" to output linear solver convergence
 verbose	= util.HasParamOption("-verbose")
@@ -153,39 +193,6 @@ end
 --dom = util.CreateDomain(gridName, numRefs, neededSubsets)
 dom = util.CreateAndDistributeDomain(gridName, numRefs, numPreRefs, neededSubsets, "metis")
 
-
---------------------------------------------------------------------------------
--- Synapse distributions via plugin by Lukas Reinhardt
--- (SplitSynapses)
---------------------------------------------------------------------------------
---30 alphasynapses (15 post- and 15 presynapses)
-alphasyns = AlphaSynapses(0,15)
-alphasyns:set_mean_gMax(3)
-alphasyns:set_dev_gMax(1)
-alphasyns:set_mean_onset(2)
-alphasyns:set_dev_onset(0.5)
-alphasyns:set_mean_tau(1)
-alphasyns:set_dev_tau(0.3)
-alphasyns:set_mean_e(0.5)
-alphasyns:set_dev_e(0.1)
-
---60 exp2synapses
-exp2syns = Exp2Synapses(14,30)
-exp2syns:set_mean_tau1(3)
-exp2syns:set_dev_tau1(1)
-exp2syns:set_mean_tau2(4)
-exp2syns:set_dev_tau2(1)
-exp2syns:set_mean_e(5)
-exp2syns:set_dev_e(0.5)
-exp2syns:set_mean_w(1)
-exp2syns:set_dev_w(0.2)
-
--- Instantiate SplitSynapseDistributor object and distribute synapses on the grid
-synDistr = SplitSynapseDistributor(gridName, gridName.."_out.ugx", false)
-synDistr:place_synapses_uniform(alphasyns:get_synapses())
-synDistr:place_synapses_uniform(exp2syns:get_synapses())
-print(synDistr:export_grid())
-
 --------------------------------------------------------------------------------
 -- Distribute Domain
 --------------------------------------------------------------------------------
@@ -266,7 +273,7 @@ caLeak:set_leaking_quantity("ca")
 leakCaConst = -3.4836065573770491e-9 +	-- single pump PMCA flux density (mol/s/m^2)
 			  -1.0135135135135137e-9 +	-- single pump NCX flux (mol/s/m^2)
 			  3.3017662162505882e-11
-caLeak:set_perm(leakCaConst, ca_in, ca_out, v_eq)
+caLeak:set_perm(leakCaConst, ca_in, ca_out, v_eq, 2)
 
 CE:add(ncx)
 CE:add(pmca)
@@ -300,12 +307,14 @@ CE:add(leakDend)
 syn_handler = SplitSynapseHandler()
 --syn_handler:set_presyn_subset("PreSynapse")
 syn_handler:set_ce_object(CE)
+--[[
 syn_handler:set_activation_timing(
 	avg_start,	-- average start time of synaptical activity in ms
 	avg_dur,	-- average duration of activity in ms (10)
 	dev_start,	-- deviation of start time in ms
 	dev_dur,	-- deviation of duration in ms
 	1.2e-3)		-- peak conductivity in [uS]
+]]--
 CE:set_synapse_handler(syn_handler)
 
 --CE:set_synapse_distributor(sd)
