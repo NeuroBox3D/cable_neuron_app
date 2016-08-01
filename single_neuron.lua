@@ -76,13 +76,13 @@ dev_dur = util.GetParamNumber(	"-devDur"	,   0.0)
 --------------------------------------------------------------------------------
 --30 alphasynapses (15 post- and 15 presynapses)
 alphasyns = AlphaSynapses(0, 200)
-alphasyns:set_mean_gMax(1.2e-3)
-alphasyns:set_dev_gMax(1e-4)
+alphasyns:set_mean_gMax(1.2e-9)
+alphasyns:set_dev_gMax(1e-10)
 alphasyns:set_mean_onset(0.001)
 alphasyns:set_dev_onset(1e-7)
-alphasyns:set_mean_tau(0.01)
+alphasyns:set_mean_tau(0.0004)
 alphasyns:set_dev_tau(1e-7)
-alphasyns:set_mean_e(0.01)
+alphasyns:set_mean_e(0.00)
 alphasyns:set_dev_e(1e-7)
 
 --60 exp2synapses not used for now
@@ -415,6 +415,7 @@ curr_dt = dt
 dtred = 2
 
 lv = 0
+maxLv = 10
 cb_counter = {}
 cb_counter[lv] = 0
 
@@ -431,6 +432,12 @@ while endTime-time > 0.001*curr_dt do
 	print("estimated CFL condition: dt < " .. cfl)
 	while (curr_dt > cfl) do
 		curr_dt = curr_dt/dtred
+		
+		if lv+1 > maxLv then
+			print("Time step too small.")
+			exit()
+		end
+		
 		lv = lv + 1
 		cb_counter[lv] = 0
 		print("estimated CFL condition: dt < " .. cfl .. " - reducing time step to " .. curr_dt)
@@ -467,6 +474,7 @@ while endTime-time > 0.001*curr_dt do
 	-- apply linear solver
 	ilu:set_disable_preprocessing(matrixIsConst)
 	if ApplyLinearSolver(linOp, u, b, cgSolver) == false then
+		exit()
 		print("Could not apply linear solver.");
 	end
 	
