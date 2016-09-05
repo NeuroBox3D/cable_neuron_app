@@ -253,14 +253,16 @@ syn_handler = SplitSynapseHandler()
 --syn_handler:set_presyn_subset("PreSynapse")
 syn_handler:set_ce_object(CE)
 
+--iterate over alpha synapses
 syn_handler:reset_iterator("ALPHA_PRE_SYNAPSE")
 while syn_handler:next() do
 	syn_handler:set_onset(0)
 end
 
+--iterate over exp2 synapses
 syn_handler:reset_iterator("EXP2_PRE_SYNAPSE")
 while syn_handler:next() do
-	syn_handler:set_onset(0)
+	syn_handler:set_onset(3e-5)
 end
 
 CE:set_synapse_handler(syn_handler)
