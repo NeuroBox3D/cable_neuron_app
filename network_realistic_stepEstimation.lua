@@ -249,15 +249,20 @@ leak:set_rev_pot(-0.057803624, ss_dend..", PostSynapseEdges")
 CE:add(leak)
 
 -- synapses
-syn_handler = NETISynapseHandler()
-syn_handler:set_presyn_subset("PreSynapse")
+syn_handler = SplitSynapseHandler()
+--syn_handler:set_presyn_subset("PreSynapse")
 syn_handler:set_ce_object(CE)
-syn_handler:set_activation_timing(
-	0.0,	-- average start time of synaptical activity in ms
-	2.4,	-- average duration of activity in ms
-	0.0,	-- deviation of start time in ms
-	0.1,	-- deviation of duration in ms
-	1.2e-3)	-- peak conductivity in units of uS
+
+syn_handler:reset_iterator("ALPHA_PRE_SYNAPSE")
+while syn_handler:next() do
+	syn_handler:set_onset(0)
+end
+
+syn_handler:reset_iterator("EXP2_PRE_SYNAPSE")
+while syn_handler:next() do
+	syn_handler:set_onset(0)
+end
+
 CE:set_synapse_handler(syn_handler)
 
 -- domain discretization
