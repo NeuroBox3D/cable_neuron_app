@@ -249,6 +249,19 @@ leak:set_rev_pot(-0.057803624, ss_dend..", PostSynapseEdges")
 CE:add(leak)
 
 -- synapses
+---[[
+syn_handler = NETISynapseHandler()
+syn_handler:set_presyn_subset("PreSynapse")
+syn_handler:set_ce_object(CE)
+syn_handler:set_activation_timing(
+       0.0,    -- average start time of synaptical activity in ms
+       2.4,    -- average duration of activity in ms
+       0.0,    -- deviation of start time in ms
+       0.1,    -- deviation of duration in ms
+       1.2e-3) -- peak conductivity in units of uS
+CE:set_synapse_handler(syn_handler)
+--]]
+--[[
 syn_handler = SplitSynapseHandler()
 --syn_handler:set_presyn_subset("PreSynapse")
 syn_handler:set_ce_object(CE)
@@ -262,10 +275,11 @@ end
 --iterate over exp2 synapses
 syn_handler:reset_iterator("EXP2_PRE_SYNAPSE")
 while syn_handler:next() do
-	syn_handler:set_onset(3e-5)
+	--syn_handler:set_onset(3e-5)
 end
 
 CE:set_synapse_handler(syn_handler)
+--]]
 
 -- domain discretization
 domainDisc = DomainDiscretization(approxSpace)
@@ -325,8 +339,8 @@ end
 -- write start solution
 if (generateVTKoutput) then 
 	out = VTKOutput()
-	--out:print(fileName .."vtk/Solvung", u, 0, time)
-	out:print_subsets(fileName .."vtk/somatic_signals", u, ss_soma, 0, time)
+	out:print(fileName .."vtk/Solvung", u, 0, time)
+	--out:print_subsets(fileName .."vtk/somatic_signals", u, ss_soma, 0, time)
 end
 
 -- store grid function in vector of  old solutions
@@ -397,8 +411,8 @@ while endTime-time > 0.001*curr_dt do
 	-- vtk output
 	if (generateVTKoutput) then
 		if math.abs(time/pstep - math.floor(time/pstep+0.5)) < 1e-5 then 
-			--out:print(fileName .."vtk/Solvung", u, math.floor(time/pstep+0.5), time)
-			out:print_subsets(fileName .."vtk/somatic_signals", u, ss_soma, math.floor(time/pstep+0.5), time)
+			out:print(fileName .."vtk/Solvung", u, math.floor(time/pstep+0.5), time)
+			--out:print_subsets(fileName .."vtk/somatic_signals", u, ss_soma, math.floor(time/pstep+0.5), time)
 		end
 	end
 	
