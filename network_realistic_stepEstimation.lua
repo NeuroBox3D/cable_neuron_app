@@ -249,7 +249,7 @@ leak:set_rev_pot(-0.057803624, ss_dend..", PostSynapseEdges")
 CE:add(leak)
 
 -- synapses
----[[
+--[[
 syn_handler = NETISynapseHandler()
 syn_handler:set_presyn_subset("PreSynapse")
 syn_handler:set_ce_object(CE)
@@ -261,25 +261,20 @@ syn_handler:set_activation_timing(
        1.2e-3) -- peak conductivity in units of uS
 CE:set_synapse_handler(syn_handler)
 --]]
---[[
+
 syn_handler = SplitSynapseHandler()
 --syn_handler:set_presyn_subset("PreSynapse")
 syn_handler:set_ce_object(CE)
 
---iterate over alpha synapses
-syn_handler:reset_iterator("ALPHA_PRE_SYNAPSE")
-while syn_handler:next() do
-	syn_handler:set_onset(0)
-end
-
---iterate over exp2 synapses
-syn_handler:reset_iterator("EXP2_PRE_SYNAPSE")
-while syn_handler:next() do
-	--syn_handler:set_onset(3e-5)
-end
-
 CE:set_synapse_handler(syn_handler)
---]]
+
+
+alphapre_it = AlphaPreSynapse_Iterator()
+while alphapre_it:is_referenceable() do
+	alphapre_it:get():set_onset(1e-5)
+	alphapre_it:next()
+end
+
 
 -- domain discretization
 domainDisc = DomainDiscretization(approxSpace)
