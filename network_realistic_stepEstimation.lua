@@ -268,14 +268,6 @@ syn_handler:set_ce_object(CE)
 
 CE:set_synapse_handler(syn_handler)
 
-
-alphapre_it = AlphaPreSynapse_Iterator()
-while alphapre_it:is_referenceable() do
-	alphapre_it:get():set_onset(1e-5)
-	alphapre_it:next()
-end
-
-
 -- domain discretization
 domainDisc = DomainDiscretization(approxSpace)
 domainDisc:add(CE)
@@ -310,6 +302,44 @@ cgSolver = CG()
 cgSolver:set_preconditioner(ilu)
 cgSolver:set_convergence_check(linConvCheck)
 --cgSolver:set_debug(dbgWriter)
+
+
+----------------------------
+-- set synapse parameters --
+----------------------------
+syn_handler:show_status()
+it = syn_handler:begin_AlphaPreSynapse()
+it_end = syn_handler:end_AlphaPreSynapse()
+while it:inequal(it_end) do
+	it:get():set_onset(1337)
+	it:next()
+end
+
+it = syn_handler:begin_AlphaPostSynapse()
+it_end = syn_handler:end_AlphaPostSynapse()
+while it:inequal(it_end) do
+	it:get():set_tau(42)
+	it:next()
+end
+
+it = syn_handler:begin_Exp2PreSynapse()
+it_end = syn_handler:end_Exp2PreSynapse()
+while it:inequal(it_end) do
+	it:get():set_threshold(-0.42)
+	it:next()
+end
+
+it = syn_handler:begin_Exp2PostSynapse()
+it_end = syn_handler:end_Exp2PostSynapse()
+while it:inequal(it_end) do
+	it:get():set_tau1(666)
+	it:get():set_tau2(420)
+	it:next()
+end
+
+syn_handler:show_status()
+
+
 
 ----------------------
 -- time stepping	--
