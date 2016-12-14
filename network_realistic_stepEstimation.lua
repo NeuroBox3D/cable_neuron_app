@@ -127,48 +127,6 @@ if not isAcyclic then
 	exit()
 end
 
-balancer.partitioner = "parmetis"
-
--- balancer.firstDistLvl = -1 will cause immediate distribution to all procs if redistSteps == 0,
--- but will cause first distribution to occur on level redistSteps otherwise!
--- 0 will distribute to firstDistProcs on (grid-)level 0 and then each proc
--- will redistribute to redistProcs on levels i*redistStep (i=1,2,...)
--- AND ALL THIS ONLY if staticProcHierarchy is set to true!
-
-if hDistr == true then
-	balancer.firstDistLvl 		= 0
-	balancer.redistSteps 		= 1
-	balancer.firstDistProcs		= 256
-	balancer.redistProcs		= 256
-else
-	balancer.firstDistLvl		= -1
-	balancer.redistSteps		= 0
-end
-
-balancer.imbalanceFactor		= imbFactor
-balancer.staticProcHierarchy	= true
-balancer.ParseParameters()
-balancer.PrintParameters()
-
--- in parallel environments: use a load balancer to distribute the grid
-loadBalancer = balancer.CreateLoadBalancer(dom)
-if loadBalancer ~= nil then
-	loadBalancer:enable_vertical_interface_creation(bVertIntf)
-	balancer.RefineAndRebalanceDomain(dom, numRefs, loadBalancer)
-
-	print("Edge cut on base level: "..balancer.defaultPartitioner:edge_cut_on_lvl(0))
-	loadBalancer:estimate_distribution_quality()
-	loadBalancer:print_quality_records()
-end
-
-print(dom:domain_info():to_string())
-
-
-write(">> done\n")
-
---print("Saving parallel grid layout")
---SaveParallelGridLayout(dom:grid(), "parallel_grid_layout_p"..ProcRank()..".ugx", 1e-5)
-
 -- create Approximation Space
 --print("Create ApproximationSpace needs to be somewhere else")
 approxSpace = ApproximationSpace(dom)
@@ -179,13 +137,11 @@ if withIons == true then
 	approxSpace:add_fct("ca", "Lagrange", 1)
 end
 
--- gating functions for HH-Fluxes
 approxSpace:init_levels();
 approxSpace:init_surfaces();
 approxSpace:init_top_surface();
 approxSpace:print_layout_statistic()
 approxSpace:print_statistic()
-order_cuthillmckee(approxSpace);
 
 ----------------------
 -- setup elem discs	--
@@ -249,7 +205,7 @@ leak:set_rev_pot(-0.057803624, ss_dend..", PostSynapseEdges")
 CE:add(leak)
 
 -- synapses
---[[
+---[[
 syn_handler = NETISynapseHandler()
 syn_handler:set_presyn_subset("PreSynapse")
 syn_handler:set_ce_object(CE)
@@ -262,21 +218,19 @@ syn_handler:set_activation_timing(
 CE:set_synapse_handler(syn_handler)
 --]]
 
+--[[
 syn_handler = SplitSynapseHandler()
 --syn_handler:set_presyn_subset("PreSynapse")
 syn_handler:set_ce_object(CE)
 
 CE:set_synapse_handler(syn_handler)
+--]]
 
 -- domain discretization
 domainDisc = DomainDiscretization(approxSpace)
 domainDisc:add(CE)
 
 assTuner = domainDisc:ass_tuner()
-
--- speed up assembling
-cableAssTuner = CableAssTuner(domainDisc, approxSpace)
-cableAssTuner:remove_ghosts_from_assembling_iterator()
 
 -- time discretization
 timeDisc = ThetaTimeStep(domainDisc)
@@ -296,6 +250,7 @@ dbgWriter:set_vtk_output(true)
 linConvCheck = CompositeConvCheck3dCPU1(approxSpace, 20, 2e-26, 1e-08)
 linConvCheck:set_component_check("v", 1e-21, 1e-12)
 linConvCheck:set_verbose(verbose)
+linConvCheck:set_adaptive(true)
 
 ilu = ILU()
 cgSolver = CG()
@@ -304,42 +259,94 @@ cgSolver:set_convergence_check(linConvCheck)
 --cgSolver:set_debug(dbgWriter)
 
 
+-------------------------
+-- domain distribution --
+-------------------------
+-- Domain distribution needs to be performed AFTER addition
+-- of the synapse handler to the CE object and addition of the
+-- CE object to the domain disc (i.e.: when the synapse handler
+-- has got access to the grid).
+-- The reason is that the synapse handler needs access to the grid
+-- to correctly distribute the synapse* attachments.
+
+balancer.partitioner = "parmetis"
+
+-- balancer.firstDistLvl = -1 will cause immediate distribution to all procs if redistSteps == 0,
+-- but will cause first distribution to occur on level redistSteps otherwise!
+-- 0 will distribute to firstDistProcs on (grid-)level 0 and then each proc
+-- will redistribute to redistProcs on levels i*redistStep (i=1,2,...)
+-- AND ALL THIS ONLY if staticProcHierarchy is set to true!
+
+if hDistr == true then
+	balancer.firstDistLvl 		= 0
+	balancer.redistSteps 		= 1
+	balancer.firstDistProcs		= 256
+	balancer.redistProcs		= 256
+else
+	balancer.firstDistLvl		= -1
+	balancer.redistSteps		= 0
+end
+
+balancer.imbalanceFactor		= imbFactor
+balancer.staticProcHierarchy	= true
+balancer.ParseParameters()
+balancer.PrintParameters()
+
+-- in parallel environments: use a load balancer to distribute the grid
+loadBalancer = balancer.CreateLoadBalancer(dom)
+if loadBalancer ~= nil then
+	loadBalancer:enable_vertical_interface_creation(bVertIntf)
+	balancer.RefineAndRebalanceDomain(dom, numRefs, loadBalancer)
+
+	print("Edge cut on base level: "..balancer.defaultPartitioner:edge_cut_on_lvl(0))
+	loadBalancer:estimate_distribution_quality()
+	loadBalancer:print_quality_records()
+end
+
+SaveParallelGridLayout(dom:grid(), fileName .. "grid/parallel_grid_layout_p"..ProcRank()..".ugx", 0)
+
+print(dom:domain_info():to_string())
+write(">> done\n")
+
+
+-- speed up assembling (if vertical interfaces are present)
+if bVertIntf then
+	cableAssTuner = CableAssTuner(domainDisc, approxSpace)
+	cableAssTuner:remove_ghosts_from_assembling_iterator()
+end
+
+-- ordering; needs to be done after distribution!
+order_cuthillmckee(approxSpace);
+
+
+--[[
 ----------------------------
 -- set synapse parameters --
 ----------------------------
-syn_handler:show_status()
+
+stim_duration = 2.4e-3 -- unit: s
+peak_cond = 1.2e-9     -- unit: S
+
 it = syn_handler:begin_AlphaPreSynapse()
 it_end = syn_handler:end_AlphaPreSynapse()
 while it:inequal(it_end) do
-	it:get():set_onset(1337)
+	syn = it:get()
+	syn:set_onset(0)
+	syn:set_duration(stim_duration)
 	it:next()
 end
 
 it = syn_handler:begin_AlphaPostSynapse()
 it_end = syn_handler:end_AlphaPostSynapse()
 while it:inequal(it_end) do
-	it:get():set_tau(42)
+	syn = it:get()
+	syn:set_tau(stim_duration/6.0)
+	syn:set_rev(0.0)
+	syn:set_gMax(peak_cond)
 	it:next()
 end
 
-it = syn_handler:begin_Exp2PreSynapse()
-it_end = syn_handler:end_Exp2PreSynapse()
-while it:inequal(it_end) do
-	it:get():set_threshold(-0.42)
-	it:next()
-end
-
-it = syn_handler:begin_Exp2PostSynapse()
-it_end = syn_handler:end_Exp2PostSynapse()
-while it:inequal(it_end) do
-	it:get():set_tau1(666)
-	it:get():set_tau2(420)
-	it:next()
-end
-
-syn_handler:show_status()
-
-
+--]]
 
 ----------------------
 -- time stepping	--
@@ -383,12 +390,13 @@ cb_counter[lv] = 0
 while endTime-time > 0.001*curr_dt do
 	-- setup time Disc for old solutions and timestep
 	timeDisc:prepare_step(solTimeSeries, curr_dt)
-	
+
 	-- reduce time step if cfl < curr_dt
 	-- (this needs to be done AFTER prepare_step as channels are updated there)
 	dtChanged = false
 	cfl = CE:estimate_cfl_cond(solTimeSeries:latest())
 	print("estimated CFL condition: dt < " .. cfl)
+
 	while (curr_dt > cfl) do
 		curr_dt = curr_dt/dtred
 		lv = lv + 1
@@ -457,8 +465,8 @@ end
 
 -- end timeseries, produce gathering file
 if (generateVTKoutput) then
-	--out:write_time_pvd(fileName .."vtk/Solvung", u)
-	out:write_time_pvd(fileName .."vtk/somatic_signals", u)
+	out:write_time_pvd(fileName .."vtk/Solvung", u)
+	--out:write_time_pvd(fileName .."vtk/somatic_signals", u)
 end
 
 if doProfiling then
