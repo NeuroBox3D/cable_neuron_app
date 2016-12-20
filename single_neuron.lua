@@ -3,13 +3,11 @@
 -- activating synapses and transmission synapses.			--
 --------------------------------------------------------------
 
-print("scrypt start")
 -- for profiler output
 SetOutputProfileStats(false)
 
 ug_load_script("ug_util.lua")
 ug_load_script("util/load_balancing_util.lua")
-
 
 --------------------------------------------------------------------------------
 -- Cell specification
@@ -19,7 +17,44 @@ if not cell == "12-L3pyr" or not cell == "31o_pyr" then
 	exit("Cell not specified correctly. Type '12-L3pyr' or '31o_pyr'.")
 end
 
-print("cell specs works")
+--------------------------------------------------------------------------------
+-- Synapse distributions via plugin by Lukas Reinhardt
+--------------------------------------------------------------------------------
+num_synapses = util.GetParamNumber("-nSyn", 140)
+---[[
+if cell == "12-L3pyr" then
+	print("first")
+	sd = SynapseDistributor("grids/13-L3pyr-77.CNG.ugx", "grids/13-L3pyr-77.CNG_syn.ugx", true)
+	sd:place_synapses({0.0, 0.0, 0.5, 0.5}, num_synapses, 1) -- 1 for alpha synapses
+else
+	print("second")
+	sd = SynapseDistributor("grids/31o_pyramidal19aFI.CNG_diams.ugx", "grids/31o_pyramidal19aFI.CNG_diams_syn.ugx", true)
+	sd:place_synapses({0.0, 1.0, 0.0}, num_synapses, 1) -- 1 for alpha synapses
+end
+
+sd:print_status()
+sd:export_grid()
+--]]
+--------------------------------------------------------------------------------
+-- Synapse degeneration
+--------------------------------------------------------------------------------
+-- load cell with fixed alpha synapse distribution
+---[[
+--gridName = util.GetParam("-grid", "../apps/cable/Ca_dyms/grids/13-L3pyr-77.CNG_syn.ugx")
+
+deg_factor = util.GetParamNumber("-degFac", 0.5)
+-- ensure correct number:
+deg_factor = deg_factor + 0.5/num_synapses
+
+sd = SynapseDistributor("grids/13-L3pyr-77.CNG_syn.ugx", "grids/13-L3pyr-77.CNG_syn_deg.ugx", false)
+sd:print_status()
+sd:degenerate_uniform(deg_factor, 2) -- first factor means: newNumber = (1-factor)*oldNumber
+sd:degenerate_uniform(deg_factor, 3) -- second param is the subset index
+sd:print_status()
+sd:export_grid()
+--gridName = util.GetParam("-grid", "grids/13-L3pyr-77.CNG_a30synch500.ugx")
+--]]
+
 
 --------------------------------------------------------------------------------
 -- UG4-Standard-Settings
@@ -33,7 +68,7 @@ print("cell specs works")
 --gridName = util.GetParam("-grid", "grids/13-L3pyr-77.CNG.ugx")
 
 if cell == "12-L3pyr" then
-	gridName = util.GetParam("-grid", "grids/13-L3pyr-77.CNG.ugx")
+	gridName = util.GetParam("-grid", "grids/13-L3pyr-77.CNG_syn_deg.ugx")
 else
 	gridName = util.GetParam("-grid", "grids/31o_pyramidal19aFI.CNG_diams_syn.ugx")
 end
@@ -51,7 +86,7 @@ AssertPluginsLoaded({"cable_neuron", "NeuronalTopologyImporter"})
 numPreRefs	= util.GetParamNumber("-numPreRefs",	0)
 numRefs		= util.GetParamNumber("-numRefs",		0)
 dt			= util.GetParamNumber("-dt",			1e-5) -- in s
-endTime		= util.GetParamNumber("-endTime",	  	1.0) -- in s
+endTime		= util.GetParamNumber("-endTime",	  	1.0)  -- in s
 nSteps 		= util.GetParamNumber("-nSteps",		endTime/dt)
 pstep		= util.GetParamNumber("-pstep",			dt,		"plotting interval")
 
@@ -67,46 +102,6 @@ avg_start = util.GetParamNumber("-avgStart"	,  30.0)
 avg_dur = util.GetParamNumber(	"-avgDur"	,   2.4)
 dev_start = util.GetParamNumber("-devStart"	,  15.0)
 dev_dur = util.GetParamNumber(	"-devDur"	,   0.0)
-
-
-
---------------------------------------------------------------------------------
--- Synapse distributions via plugin by Lukas Reinhardt
--- (SplitSynapses)
---------------------------------------------------------------------------------
---30 alphasynapses (15 post- and 15 presynapses)
-alphasyns = AlphaSynapses(0, 200)
-alphasyns:set_mean_gMax(1.2e-9)
-alphasyns:set_dev_gMax(1e-10)
-alphasyns:set_mean_onset(0.001)
-alphasyns:set_dev_onset(1e-7)
-alphasyns:set_mean_tau(0.0004)
-alphasyns:set_dev_tau(1e-7)
-alphasyns:set_mean_e(0.00)
-alphasyns:set_dev_e(1e-7)
-
---60 exp2synapses not used for now
-exp2syns = Exp2Synapses(14,30)
-exp2syns:set_mean_tau1(3)
-exp2syns:set_dev_tau1(1)
-exp2syns:set_mean_tau2(4)
-exp2syns:set_dev_tau2(1)
-exp2syns:set_mean_e(5)
-exp2syns:set_dev_e(0.5)
-exp2syns:set_mean_w(1)
-exp2syns:set_dev_w(0.2)
-
-gridSyn = "grids/13-L3pyr-77.CNG.syn.ugx"
--- Instantiate SplitSynapseDistributor object and distribute synapses on the grid
-synDistr = SplitSynapseDistributor(gridName, gridSyn, false)
-synDistr:place_synapses_uniform(alphasyns:get_synapses())
---synDistr:place_synapses_uniform(exp2syns:get_synapses())
-synDistr:print_status()
-print(synDistr:export_grid())
-
-gridName = gridSyn
-
-
 
 -- specify "-verbose" to output linear solver convergence
 verbose	= util.HasParamOption("-verbose")
@@ -192,6 +187,20 @@ else
 end
 --dom = util.CreateDomain(gridName, numRefs, neededSubsets)
 dom = util.CreateAndDistributeDomain(gridName, numRefs, numPreRefs, neededSubsets, "metis")
+
+
+--------------------------------------------------------------------------------
+-- Synapse distributions via plugin by Lukas Reinhardt
+--------------------------------------------------------------------------------
+
+----sd = SynapseDistributor(dom, "grids/grid_out.ugx", true)
+--sd:place_synapses_uniform(100)
+--sd:place_synapses_uniform(num_synapses)
+--sd:place_synapses_uniform(2, num_synapses)
+----sd:place_synapses({0.0, 0.0, 0.5, 0.5}, num_synapses)
+--sd:set_activation_timing(avg_start, avg_dur, dev_start, dev_dur)
+----sd:print_status()
+
 
 --------------------------------------------------------------------------------
 -- Distribute Domain
@@ -304,17 +313,15 @@ CE:add(leakDend)
 
 
 -- synapses
-syn_handler = SplitSynapseHandler()
+syn_handler = NETISynapseHandler()
 --syn_handler:set_presyn_subset("PreSynapse")
 syn_handler:set_ce_object(CE)
---[[
 syn_handler:set_activation_timing(
 	avg_start,	-- average start time of synaptical activity in ms
 	avg_dur,	-- average duration of activity in ms (10)
 	dev_start,	-- deviation of start time in ms
 	dev_dur,	-- deviation of duration in ms
 	1.2e-3)		-- peak conductivity in [uS]
-]]--
 CE:set_synapse_handler(syn_handler)
 
 --CE:set_synapse_distributor(sd)
@@ -474,8 +481,8 @@ while endTime-time > 0.001*curr_dt do
 	-- apply linear solver
 	ilu:set_disable_preprocessing(matrixIsConst)
 	if ApplyLinearSolver(linOp, u, b, cgSolver) == false then
-		exit()
 		print("Could not apply linear solver.");
+		exit()
 	end
 	
 	-- log time and vm in Soma
