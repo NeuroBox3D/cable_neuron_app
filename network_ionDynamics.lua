@@ -1,8 +1,12 @@
-------------------------------------------------------
--- This script is intended for testing purposes.	--
--- It solves the cable equation with HH channels,	--
--- activating synapses and transmission synapses.	--
-------------------------------------------------------
+-------------------------------------------------------------------------------------
+-- This script solves the cable equation on network morphologies created by NeuGen --
+-- and converted to ugx by NETI.                                                   --
+-- It (re-)configures the primary alpha synapses inserted into the grid by NeuGen  --
+-- to a custom activation pattern. Simulation includes membrane potential,         --
+-- K, Na, Ca as well. The ions dynamics include ion-specific channels              --
+-- and pumps as well as leakage to ensure ion-wise equilibria.                     --
+-- Biological parameters are due to T. Branco.                                     --
+-------------------------------------------------------------------------------------
 
 ug_load_script("ug_util.lua")
 ug_load_script("util/load_balancing_util.lua")
@@ -26,9 +30,6 @@ nSteps 		= util.GetParamNumber("-nSteps",		endTime/dt)
 pstep		= util.GetParamNumber("-pstep",			dt,		"plotting interval")
 imbFactor	= util.GetParamNumber("-imb",			1.05,	"imbalance factor")
 
--- with simulation of single ion concentrations?
-withIons = util.HasParamOption("-ions")
-
 -- specify "-verbose" to output linear solver convergence
 verbose	= util.HasParamOption("-verbose")
 
@@ -41,12 +42,12 @@ bVertIntf	= util.HasParamOption("-vIntf")
 -- vtk output?
 generateVTKoutput	= util.HasParamOption("-vtk")
 
+-- whether or not subsets are distinguished by layer
+subsetsByLayer		= util.HasParamOption("-sslw")
+
 -- profiling?
 doProfiling			= util.HasParamOption("-profile")
 SetOutputProfileStats(doProfiling)
-
--- whether or not subsets are distinguished by layer
-subsetsByLayer		= util.HasParamOption("-sslw")
 
 -- file handling
 fileName = util.GetParam("-outName", "Solvung")
@@ -120,12 +121,166 @@ else
 end
 dom = util.CreateDomain(gridName, numPreRefs, neededSubsets)
 
--- check domain is acyclic
-isAcyclic = is_acyclic(dom)
-if not isAcyclic then
-	print("Domain is not acyclic!")
-	exit()
+-- create Approximation Space
+--print("Create ApproximationSpace needs to be somewhere else")
+approxSpace = ApproximationSpace(dom)
+approxSpace:add_fct("v", "Lagrange", 1)
+approxSpace:add_fct("k", "Lagrange", 1)
+approxSpace:add_fct("na", "Lagrange", 1)
+approxSpace:add_fct("ca", "Lagrange", 1)
+
+-- gating functions for HH-Fluxes
+approxSpace:init_levels();
+approxSpace:init_surfaces();
+approxSpace:init_top_surface();
+approxSpace:print_layout_statistic()
+approxSpace:print_statistic()
+
+----------------------
+-- setup elem discs	--
+----------------------
+
+-- collect subsets defined layer-wise
+ss_axon = ""
+ss_dend = ""
+ss_soma = ""
+if subsetsByLayer then
+	ss_axon = "AXON__L4_STELLATE, AXON__L23_PYRAMIDAL, AXON__L5A_PYRAMIDAL, AXON__L5B_PYRAMIDAL"
+	ss_dend = "DEND__L4_STELLATE, DEND__L23_PYRAMIDAL, DEND__L5A_PYRAMIDAL, DEND__L5B_PYRAMIDAL"
+	ss_soma = "SOMA__L4_STELLATE, SOMA__L23_PYRAMIDAL, SOMA__L5A_PYRAMIDAL, SOMA__L5B_PYRAMIDAL"
+else
+	ss_axon = "Axon"
+	ss_dend = "Dendrite"
+	ss_soma = "Soma"
 end
+
+-- cable equation
+CE = CableEquation(ss_axon..", "..ss_dend..", "..ss_soma, true)
+CE:set_spec_cap(spec_cap)
+CE:set_spec_res(spec_res)
+
+CE:set_rev_pot_k(e_k)
+CE:set_rev_pot_na(e_na)
+CE:set_rev_pot_ca(e_ca)
+
+CE:set_k_out(k_out)
+CE:set_na_out(na_out)
+CE:set_ca_out(ca_out)
+
+CE:set_diff_coeffs({diff_k, diff_na, diff_ca})
+
+CE:set_temperature_celsius(temp)
+
+
+-- Hodgkin and Huxley channels
+HH = ChannelHHNernst("v", ss_axon..", "..ss_dend..", "..ss_soma)
+HH:set_conductances(g_k_ax, g_na_ax, ss_axon)
+HH:set_conductances(g_k_so, g_na_so, ss_soma)
+HH:set_conductances(g_k_de, g_na_de, ss_dend)
+
+CE:add(HH)
+
+-- leakage
+tmp_fct = math.pow(2.3, (temp-23.0)/10.0)
+
+leak = ChannelLeak("v", ss_axon..", "..ss_dend..", "..ss_soma)
+leak:set_cond(g_l_ax*tmp_fct, ss_axon)
+leak:set_rev_pot(-0.066210342630746467, ss_axon)
+leak:set_cond(g_l_so*tmp_fct, ss_soma)
+leak:set_rev_pot(-0.022074360525636, ss_soma)
+leak:set_cond(g_l_de*tmp_fct, ss_dend)
+leak:set_rev_pot(-0.056314322586687, ss_dend)
+
+CE:add(leak)
+
+
+-- Na/K Pump
+nak_ax = Na_K_Pump("", ss_axon)
+nak_ax:set_max_flux(2.6481515257588432)	-- mol/(m^2*s)
+nak_so = Na_K_Pump("", ss_soma)
+nak_so:set_max_flux(6.05974e-7/4.57658e-06)	-- mol/(m^2*s)
+nak_de = Na_K_Pump("", ss_dend)
+nak_de:set_max_flux(1.61593e-8/4.57658e-06)	-- mol/(m^2*s)
+
+CE:add(nak_ax)
+CE:add(nak_so)
+CE:add(nak_de)
+
+
+-- ion leakage
+kLeak_ax = IonLeakage("k", ss_axon)
+leakKConst_ax = 0.0000040675975261062531 +  -- HH (mol/s/m^2)
+			   -0.00000010983795579882983   -- Na/K (mol/s/m^2)
+kLeak_ax:set_perm(leakKConst_ax, k_in, k_out, v_eq, 1)
+kLeak_so = IonLeakage("k", ss_soma)
+leakKConst_so = 2.0338e-06 +			-- HH (mol/s/m^2)
+				-(2.0/3.0 * 6.05974e-7)	-- Na/K (mol/s/m^2)
+kLeak_so:set_perm(leakKConst_so, k_in, k_out, v_eq, 1)
+kLeak_de = IonLeakage("k", ss_dend)
+leakKConst_de = 3.0507e-7 +	            -- HH (mol/s/m^2)
+				-(2.0/3.0 * 1.61593e-8)	-- Na/K (mol/s/m^2)
+kLeak_de:set_perm(leakKConst_de, k_in, k_out, v_eq, 1)
+
+-- TODO: WHAt about Na!?
+
+CE:add(kLeak_ax)
+CE:add(kLeak_so)
+CE:add(kLeak_de)
+
+
+-- synapses
+syn_handler = SynapseHandler()
+syn_handler:set_ce_object(CE)
+syn_handler:set_activation_timing_alpha(
+	5e-3,	-- average onset of synaptical activity in [s]
+	4e-4,   -- average tau of activity function in [s]
+	2.5e-3, -- deviation of onset in [s]
+	1.5e-5, -- deviation of tau in [s]
+	1.2e-9)	-- peak conductivity in [S]
+CE:set_synapse_handler(syn_handler)
+
+-- domain discretization
+domainDisc = DomainDiscretization(approxSpace)
+domainDisc:add(CE)
+
+assTuner = domainDisc:ass_tuner()
+
+-- time discretization
+timeDisc = ThetaTimeStep(domainDisc)
+timeDisc:set_theta(1.0)
+
+-- create instationary operator
+linOp = AssembledLinearOperator(timeDisc)
+
+------------------
+-- solver setup	--
+------------------
+-- debug writer
+dbgWriter = GridFunctionDebugWriter(approxSpace)
+dbgWriter:set_vtk_output(true)
+
+-- linear solver --
+linConvCheck = CompositeConvCheck3dCPU1(approxSpace, 20, 2e-26, 1e-08)
+linConvCheck:set_component_check("v", 1e-21, 1e-12)
+linConvCheck:set_verbose(verbose)
+linConvCheck:set_adaptive(true)
+
+ilu = ILU()
+cgSolver = CG()
+cgSolver:set_preconditioner(ilu)
+cgSolver:set_convergence_check(linConvCheck)
+--cgSolver:set_debug(dbgWriter)
+
+
+-------------------------
+-- domain distribution --
+-------------------------
+-- Domain distribution needs to be performed AFTER addition
+-- of the synapse handler to the CE object and addition of the
+-- CE object to the domain disc (i.e.: when the synapse handler
+-- has got access to the grid).
+-- The reason is that the synapse handler needs access to the grid
+-- to correctly distribute the synapse* attachments.
 
 balancer.partitioner = "parmetis"
 
@@ -163,140 +318,16 @@ end
 
 print(dom:domain_info():to_string())
 
-
-write(">> done\n")
-
 --print("Saving parallel grid layout")
 --SaveParallelGridLayout(dom:grid(), "parallel_grid_layout_p"..ProcRank()..".ugx", 1e-5)
 
--- create Approximation Space
---print("Create ApproximationSpace needs to be somewhere else")
-approxSpace = ApproximationSpace(dom)
-approxSpace:add_fct("v", "Lagrange", 1)
-if withIons == true then
-	approxSpace:add_fct("k", "Lagrange", 1)
-	approxSpace:add_fct("na", "Lagrange", 1)
-	approxSpace:add_fct("ca", "Lagrange", 1)
+-- speed up assembling (if vertical interfaces are present)
+if bVertIntf then
+	cableAssTuner = CableAssTuner(domainDisc, approxSpace)
+	cableAssTuner:remove_ghosts_from_assembling_iterator()
 end
 
--- gating functions for HH-Fluxes
-approxSpace:init_levels();
-approxSpace:init_surfaces();
-approxSpace:init_top_surface();
-approxSpace:print_layout_statistic()
-approxSpace:print_statistic()
 order_cuthillmckee(approxSpace);
-
-----------------------
--- setup elem discs	--
-----------------------
-
--- collect subsets defined layer-wise
-ss_axon = ""
-ss_dend = ""
-ss_soma = ""
-if subsetsByLayer then
-	ss_axon = "AXON__L4_STELLATE, AXON__L23_PYRAMIDAL, AXON__L5A_PYRAMIDAL, AXON__L5B_PYRAMIDAL"
-	ss_dend = "DEND__L4_STELLATE, DEND__L23_PYRAMIDAL, DEND__L5A_PYRAMIDAL, DEND__L5B_PYRAMIDAL"
-	ss_soma = "SOMA__L4_STELLATE, SOMA__L23_PYRAMIDAL, SOMA__L5A_PYRAMIDAL, SOMA__L5B_PYRAMIDAL"
-else
-	ss_axon = "Axon"
-	ss_dend = "Dendrite"
-	ss_soma = "Soma"
-end
-
--- cable equation
-CE = CableEquation(ss_axon..", "..ss_dend..", "..ss_soma..", PreSynapseEdges, PostSynapseEdges", withIons)
-CE:set_spec_cap(spec_cap)
-CE:set_spec_res(spec_res)
-
-CE:set_rev_pot_k(e_k)
-CE:set_rev_pot_na(e_na)
-CE:set_rev_pot_ca(e_ca)
-
-CE:set_k_out(k_out)
-CE:set_na_out(na_out)
-CE:set_ca_out(ca_out)
-
-CE:set_diff_coeffs({diff_k, diff_na, diff_ca})
-
-CE:set_temperature_celsius(temp)
-
-
--- Hodgkin and Huxley channels
-if withIons == true then
-	HH = ChannelHHNernst("v", ss_axon..", "..ss_dend..", "..ss_soma..", PreSynapseEdges, PostSynapseEdges")
-else
-	HH = ChannelHH("v", ss_axon..", "..ss_dend..", "..ss_soma..", PreSynapseEdges, PostSynapseEdges")
-end
-HH:set_conductances(g_k_ax, g_na_ax, ss_axon..", PreSynapseEdges")
-HH:set_conductances(g_k_so, g_na_so, ss_soma)
-HH:set_conductances(g_k_de, g_na_de, ss_dend..", PostSynapseEdges")
-
-CE:add(HH)
-
--- leakage
-tmp_fct = math.pow(2.3,(temp-23.0)/10.0)
-
-leak = ChannelLeak("v", ss_axon..", "..ss_dend..", "..ss_soma..", PreSynapseEdges, PostSynapseEdges")
-leak:set_cond(g_l_ax*tmp_fct, ss_axon..", PreSynapseEdges")
-leak:set_rev_pot(-0.066148458, ss_axon..", PreSynapseEdges")
-leak:set_cond(g_l_so*tmp_fct, ss_soma)
-leak:set_rev_pot(-0.030654022, ss_soma)
-leak:set_cond(g_l_de*tmp_fct, ss_dend..", PostSynapseEdges")
-leak:set_rev_pot(-0.057803624, ss_dend..", PostSynapseEdges")
-
-CE:add(leak)
-
--- synapses
-syn_handler = SplitSynapseHandler()
---syn_handler:set_presyn_subset("PreSynapse")
-syn_handler:set_ce_object(CE)
---[[
-syn_handler:set_activation_timing(
-	0.0,	-- average start time of synaptical activity in ms
-	2.4,	-- average duration of activity in ms
-	0.0,	-- deviation of start time in ms
-	0.1,	-- deviation of duration in ms
-	1.2e-3)	-- peak conductivity in units of uS
---]]
-
-CE:set_synapse_handler(syn_handler)
-
--- domain discretization
-domainDisc = DomainDiscretization(approxSpace)
-domainDisc:add(CE)
-
-assTuner = domainDisc:ass_tuner()
-
--- speed up assembling
-cableAssTuner = CableAssTuner(domainDisc, approxSpace)
-cableAssTuner:remove_ghosts_from_assembling_iterator()
-
--- time discretization
-timeDisc = ThetaTimeStep(domainDisc)
-timeDisc:set_theta(1.0)
-
--- create instationary operator
-linOp = AssembledLinearOperator(timeDisc)
-
-------------------
--- solver setup	--
-------------------
--- debug writer
-dbgWriter = GridFunctionDebugWriter(approxSpace)
-dbgWriter:set_vtk_output(true)
-
--- linear solver --
-linConvCheck = CompositeConvCheck3dCPU1(approxSpace, 20, 2e-26, 1e-08)
-linConvCheck:set_component_check("v", 1e-21, 1e-12)
-linConvCheck:set_verbose(verbose)
-
-ilu = ILU()
-cgSolver = CG()
-cgSolver:set_preconditioner(ilu)
-cgSolver:set_convergence_check(linConvCheck)
---cgSolver:set_debug(dbgWriter)
 
 ----------------------
 -- time stepping	--
@@ -312,17 +343,15 @@ u = GridFunction(approxSpace)
 b = GridFunction(approxSpace)
 u:set(0.0)
 Interpolate(v_eq, u, "v")
-if withIons == true then
-	Interpolate(k_in, u, "k");
-	Interpolate(na_in, u, "na");
-	Interpolate(ca_in, u, "ca")
-end
+Interpolate(k_in, u, "k");
+Interpolate(na_in, u, "na");
+Interpolate(ca_in, u, "ca")
 
 -- write start solution
 if (generateVTKoutput) then 
 	out = VTKOutput()
-	out:print(fileName .."vtk/Solvung", u, 0, time)
-	--out:print_subsets(fileName .."vtk/somatic_signals", u, ss_soma, 0, time)
+	--out:print(fileName .."vtk/Solvung", u, 0, time)
+	out:print_subset(fileName .."vtk/somatic_signals", u, 2, 0, time)
 end
 
 -- store grid function in vector of  old solutions
@@ -374,9 +403,7 @@ while endTime-time > 0.001*curr_dt do
 	-- assemble linear problem
 	matrixIsConst = time ~= 0.0 and dtChanged == false
 	assTuner:set_matrix_is_const(matrixIsConst)
-	if AssembleLinearOperatorRhsAndSolution(linOp, u, b) == false then 
-		print("Could not assemble operator"); exit(); 
-	end
+	AssembleLinearOperatorRhsAndSolution(linOp, u, b)
 	
 	-- synchronize (for profiling)
 	PclDebugBarrierAll()
@@ -385,6 +412,7 @@ while endTime-time > 0.001*curr_dt do
 	ilu:set_disable_preprocessing(matrixIsConst)
 	if ApplyLinearSolver(linOp, u, b, cgSolver) == false then
 		print("Could not apply linear solver.");
+		exit()
 	end
 	
 	-- update to new time
@@ -393,8 +421,8 @@ while endTime-time > 0.001*curr_dt do
 	-- vtk output
 	if (generateVTKoutput) then
 		if math.abs(time/pstep - math.floor(time/pstep+0.5)) < 1e-5 then 
-			out:print(fileName .."vtk/Solvung", u, math.floor(time/pstep+0.5), time)
-			--out:print_subsets(fileName .."vtk/somatic_signals", u, ss_soma, math.floor(time/pstep+0.5), time)
+			--out:print(fileName .."vtk/Solvung", u, math.floor(time/pstep+0.5), time)
+			out:print_subset(fileName .."vtk/somatic_signals", u, 2, math.floor(time/pstep+0.5), time)
 		end
 	end
 	
@@ -414,8 +442,8 @@ end
 
 -- end timeseries, produce gathering file
 if (generateVTKoutput) then
-	out:write_time_pvd(fileName .."vtk/Solvung", u)
-	--out:write_time_pvd(fileName .."vtk/somatic_signals", u)
+	--out:write_time_pvd(fileName .."vtk/Solvung", u)
+	out:write_time_pvd(fileName .."vtk/somatic_signals", u)
 end
 
 if doProfiling then

@@ -1,10 +1,11 @@
-----------------------------------------------------------------
--- This script is intended for testing purposes.              --
--- It solves the cable equation with HH channels,             --
--- activating synapses and transmission synapses.	          --
---                                                            --
--- OUTDATED! Please use network_realistic_stepEstimation.lua! --
-----------------------------------------------------------------
+------------------------------------------------------
+-- This script is intended for testing purposes.	--
+-- It solves the cable equation with HH channels,	--
+-- activating synapses and transmission synapses.	--
+------------------------------------------------------
+
+exit("This script is not going to work -- parameter and unknown units of"..
+	 " implicit and explicit cable discretizations do not match!")
 
 -- for profiler output
 SetOutputProfileStats(false)
@@ -12,13 +13,10 @@ SetOutputProfileStats(false)
 ug_load_script("ug_util.lua")
 
 -- choice of grid
-gridName = util.GetParam("-grid", "testNetwork.ugx")
+gridName = util.GetParam("-grid", "grids/31o_pyramidal19aFI.CNG_diams.ugx")
 
 -- dimension
-ugxfi = UGXFileInfo()
-ugxfi:parse_file(gridName)
-dim = ugxfi:physical_grid_dimension(0)
-print("Detected dimension "..dim.." in ugx file.\n")
+dim = 3
 
 -- init UG
 InitUG(dim, AlgebraType("CPU", 1));
@@ -27,8 +25,8 @@ AssertPluginsLoaded({"SynapseHandler","HH_Kabelnew"})
 -- parameters steering simulation
 numPreRefs	= util.GetParamNumber("-numPreRefs",	0)
 numRefs		= util.GetParamNumber("-numRefs",		0)
-dt			= util.GetParamNumber("-dt",			1e-5) -- in units of s
-endTime		= util.GetParamNumber("-endTime",		0.1) -- in units of s
+dt			= util.GetParamNumber("-dt",			0.01) -- in ms
+endTime		= util.GetParamNumber("-endTime",		100.0) -- in ms
 nSteps 		= util.GetParamNumber("-nSteps",		endTime/dt)
 
 -- vtk output?
@@ -54,16 +52,16 @@ spec_cap = 1.0e-2	-- in F/m^2
 spec_res = 1.0		-- in Ohm m
 
 -- diameter
-diameter = 1.0e-6	-- in m
+diameter = 2.0e-7	-- in m
 
 -- reversal potentials
-ena = 0.050	--0.0635129		-- in V
-ek  = -0.077 ---0.0741266	-- in V
+ena = 0.05			-- in V
+ek  = -0.077		-- in V
 
--- diffusion coefficients (in units of m^2/s)
-diff_k 	= 1.0e-9
-diff_na	= 1.0e-9
-diff_ca	= 2.2e-10
+-- diffusion coefficients
+diff_k 	= 1.0e-9	-- in m^2/s
+diff_na	= 1.0e-9	-- in m^2/s
+diff_ca	= 2.2e-10	-- in m^2/s
 
 ----------------------------------
 -- setup approximation space	--
@@ -80,8 +78,11 @@ dom = util.CreateAndDistributeDomain(gridName, numRefs, numPreRefs, neededSubset
 --print("Create ApproximationSpace needs to be somewhere else")
 approxSpace = ApproximationSpace(dom)
 approxSpace:add_fct("v", "Lagrange", 1)
-approxSpace:add_fct("k", "Lagrange", 1)
+approxSpace:add_fct("h", "Lagrange", 1)
+approxSpace:add_fct("m", "Lagrange", 1)
+approxSpace:add_fct("n", "Lagrange", 1)
 approxSpace:add_fct("na", "Lagrange", 1)
+approxSpace:add_fct("k", "Lagrange", 1)
 approxSpace:add_fct("ca", "Lagrange", 1)
 
 -- gating functions for HH-Fluxes
@@ -95,51 +96,59 @@ OrderCuthillMcKee(approxSpace, true);
 ----------------------
 -- setup elem discs	--
 ----------------------
+InfluxPlacex = 6.9e-06 -- in m
+InfluxPlacey = 3.74e-05 -- in m
+InfluxPlacez = -2.86e-05
+flux_ac = 1e-5
+InfluxValue = 1e-14
 
--- cable equation
-CE = CableEquation("axon, dend, soma")
+function injection3d(t, x, y, z)
+	--print("x: "..x.."y: "..y.."z: "..z.." time: "..time)
+	if  t >= 0
+		and t <= 20
+		and math.abs(x - InfluxPlacex) < flux_ac
+		and math.abs(y - InfluxPlacey) < flux_ac
+		and math.abs(z - InfluxPlacez) < flux_ac
+	then
+	--print("flux is done")
+	return InfluxValue
+	else
+	return 0.0
+	end
+end
+
+injection_flux = LuaFunctionNumber()
+injection_flux:set_lua_callback("injection"..dim.."d", (1+dim))
+
+HH = ElemDiscHH_Nernst_FV1(approxSpace,"v, h, m, n, na, k", "axon")
+HH:set_injection(injection_flux)
+HH:set_diameter(diameter)
+HH:set_spec_capa(spec_cap)
+HH:set_spec_res(spec_res)
+HH:set_consts(g_Na, g_K, g_L)
+HH:set_accuracy(1e-6)
+HH:set_nernst_consts(8.3136, 310.0, 96485.0)
+HH:set_diff_Na(diff_na)
+HH:set_diff_K(diff_k)
+
+CE = CableEquation("dend, soma")
 --CE:set_diameter(diameter)
---CE:set_diff_coeffs({diff_k, diff_na, diff_ca})
---CE:set_spec_cap(spec_cap)
---CE:set_spec_res(spec_res)
---CE:set_influx_ac(Flux_ac)
 
--- Hodgkin and Huxley channels
-HH = ChannelHHNernst("v, k, na", "axon")
-CE:add(HH)
---HH = ChannelHHNernst("v, k, na", "axon")
-
--- leakage
-leakAxon = ChannelLeak("v", "axon")
-leakAxon:set_rev_pot(-0.0544)
-leakDend = ChannelLeak("v", "dend")
-CE:add(leakAxon)
-CE:add(leakDend)
-
--- synapses
-syn_handler = NETISynapseHandler()
-syn_handler:set_presyn_subset("PreSynapse")
-syn_handler:set_ce_object(CE)
-syn_handler:set_activation_timing(
-	0.1,	-- average start time of synaptical activity in ms
-	5,		-- average duration of activity in ms (10)
-	1.0,	-- deviation of start time in ms
-	0.5,	-- deviation of duration in ms
-	1.2e-3)	-- peak conductivity (6e-4)
-CE:set_synapse_handler(syn_handler)
-
--- treat unknowns on synapse subset
 diri = DirichletBoundary()
-diri:add(0.0, "v", "Exp2Syn")
-diri:add(0.0, "k", "Exp2Syn")
-diri:add(0.0, "na", "Exp2Syn")
-diri:add(0.0, "ca", "Exp2Syn")
+diri:add(0.0, "h", "dend, soma")
+diri:add(0.0, "n", "dend, soma")
+diri:add(0.0, "m", "dend, soma")
+diri:add(0.0, "ca", "axon")
 
+-------------------------------------------
+--  Setup Domain Discretization
+-------------------------------------------
 
--- domain discretization
 domainDisc = DomainDiscretization(approxSpace)
 domainDisc:add(CE)
+domainDisc:add(HH)
 domainDisc:add(diri)
+
 
 -- time discretization
 timeDisc = ThetaTimeStep(domainDisc)
@@ -173,21 +182,22 @@ gmg:set_num_postsmooth(3)
 --gmg:set_debug(dbgWriter)
 
 
--- linear solver --
-linConvCheck = ConvCheck()
-linConvCheck:set_maximum_steps(2000)
-linConvCheck:set_minimum_defect(1e-50)
-linConvCheck:set_reduction(1e-08)
-linConvCheck:set_verbose(false)
+convCheckL = CompositeConvCheck(approxSpace, 2000, 1e-30, 1e-1)
+convCheckL:set_component_check("v", 1e-30, 1e-04)
+convCheckL:set_component_check("h,m,n", 5e-20, 1e-04)
+convCheckL:set_component_check("na,k,ca", 5e-40, 1e-04)
+convCheckL:set_verbose(false)
 
+-- create BiCGStab Solver
 bicgstabSolver = BiCGStab()
 bicgstabSolver:set_preconditioner(ILU())
-bicgstabSolver:set_convergence_check(linConvCheck)
+bicgstabSolver:set_convergence_check(convCheckL)
 --bicgstabSolver:set_debug(dbgWriter)
 
--- non-linear solver --
-newtonConvCheck = CompositeConvCheck3dCPU1(approxSpace, 20, 2e-26, 1e-08)
-newtonConvCheck:set_component_check("v", 1e-21, 1e-12)
+newtonConvCheck = CompositeConvCheck(approxSpace, 20, 1e-15, 1e-10)
+newtonConvCheck:set_component_check("v", 5e-27, 1e-08)
+newtonConvCheck:set_component_check("h,m,n", 5e-15, 1e-10)
+newtonConvCheck:set_component_check("na,k,ca", 1e-26, 1e-10)
 newtonConvCheck:set_verbose(true)
 
 newtonSolver = NewtonSolver()
@@ -206,10 +216,58 @@ time = 0.0
 -- init solution
 u = GridFunction(approxSpace)
 u:set(0.0)
-Interpolate(-0.065, u, "v")
-Interpolate(54.4, u, "k");
-Interpolate(10.0, u, "na");
-Interpolate(5e-5, u, "ca")
+-------------------------------------
+--Setting all Startvalues
+-------------------------------------
+
+-- set initial value
+print("Interpolation start values")
+
+-- set initial values for Na and K
+StartValue = -65.0
+Interpolate(10, u, "na", time)
+Interpolate(140.0, u, "k", time)
+Interpolate(5e-5, u, "ca", time)
+Interpolate(StartValue, u, "v", time)
+
+-- Startvalues independent from VM
+AlphaHn_test = (math.exp(1-0.1*(StartValue+65))-1);
+if (math.abs(AlphaHn_test) > 1e-5) then
+	AlphaHn = (0.1-0.01*(StartValue+65))/(math.exp(1-0.1*(StartValue+65))-1)
+	else
+	AlphaHn = 0.1
+end
+--print("StartAlphaHn: ".. AlphaHn)
+BetaHn = 0.125*math.exp(-(StartValue+65)/80);
+
+AlphaHm_test = math.exp(2.5-0.1*(StartValue+65))-1.0;
+if (math.abs(AlphaHm_test) > 1e-5) then
+	AlphaHm = (2.5 - 0.1*(StartValue+65)) / AlphaHm_test;
+else
+	AlphaHm = 1.0;
+end
+--AlphaHm = (2.5 - 0.1*(StartValue+65))/(math.exp(2.5-0.1*(StartValue+65))-1);
+BetaHm = 4.0*math.exp(-(StartValue+65)/18);
+
+AlphaHh = 0.07*math.exp((-1*(StartValue+65))/20);
+BetaHh = 1/(math.exp(3-0.1*(StartValue+65))+1);
+
+-- initialisiert H-Werte auf Startwert
+h = AlphaHh/(AlphaHh+BetaHh);
+startValueh = ConstUserNumber(0.596113)--(0.596113)--(h)--
+Interpolate(h, u, "h", time)
+
+-- initialisiert M-Werte auf Startwert
+m = AlphaHm/(AlphaHm+BetaHm);
+startValuem = ConstUserNumber(0.0529348)--(0.0529354)--(m/10)
+Interpolate(m, u, "m", time)
+
+-- initialisiert N-Werte auf Startwert
+n = AlphaHn/(AlphaHn+BetaHn);
+startValuen = ConstUserNumber(0.317681)--(0.31768)--(n)
+Interpolate(n, u, "n", time)
+
+
 
 -- write start solution
 if (generateVTKoutput) then 
@@ -247,6 +305,7 @@ for step = 1,nSteps do
 	if (generateVTKoutput) then 
 		out:print(fileName .."vtk/Solvung", u, step, time)
 	end
+	
 	
 	-- updte time series (reuse memory)
 	oldestSol = solTimeSeries:oldest()

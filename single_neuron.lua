@@ -3,116 +3,106 @@
 -- activating synapses and transmission synapses.			--
 --------------------------------------------------------------
 
--- for profiler output
-SetOutputProfileStats(false)
-
 ug_load_script("ug_util.lua")
 ug_load_script("util/load_balancing_util.lua")
 
---------------------------------------------------------------------------------
--- Cell specification
---------------------------------------------------------------------------------
-cell = util.GetParam("-cellName", "12-L3pyr")
-if not cell == "12-L3pyr" or not cell == "31o_pyr" then
-	exit("Cell not specified correctly. Type '12-L3pyr' or '31o_pyr'.")
-end
-
---------------------------------------------------------------------------------
--- UG4-Standard-Settings
---------------------------------------------------------------------------------
-
--- choice of grid
---gridName = util.GetParam("-grid", "grids/test_cell_small_ref_1.ugx")
---gridName = util.GetParam("-grid", "grids/31o_pyramidal19aFI.CNG_with_subsets.ugx")
---gridName = util.GetParam("-grid", "grids/31o_pyramidal19aFI.CNG_with_subsets_and_diams.ugx")
---gridName = util.GetParam("-grid", "grids/31o_pyramidal19aFI.CNG_diams.ugx")
---gridName = util.GetParam("-grid", "grids/13-L3pyr-77.CNG.ugx")
-
-if cell == "12-L3pyr" then
-	gridName = util.GetParam("-grid", "grids/13-L3pyr-77.CNG.ugx")
-else
-	gridName = util.GetParam("-grid", "grids/31o_pyramidal19aFI.CNG_diams_syn.ugx")
-end
-
-print(gridName);
 
 -- dimension
 dim = 3
 
 -- init UG
 InitUG(dim, AlgebraType("CPU", 1));
-AssertPluginsLoaded({"cable_neuron", "NeuronalTopologyImporter"})
+AssertPluginsLoaded({"cable_neuron"})
+
+
+--------------------------------------------------------------------------------
+-- Settings
+--------------------------------------------------------------------------------
+cell = util.GetParam("-cellName", "12-L3pyr")
+if not cell == "12-L3pyr" or not cell == "31o_pyr" then
+	exit("Cell not specified correctly. Type '12-L3pyr' or '31o_pyr'.")
+end
+
+if cell == "12-L3pyr" then
+	gridName = "grids/13-L3pyr-77.CNG.ugx"
+	gridSyn  = "grids/13-L3pyr-77.CNG_syn.ugx"
+	gridDeg  = "grids/13-L3pyr-77.CNG_syn_deg.ugx"
+	distro   = {0.0, 0.0, 0.5, 0.5}
+	neededSubsets = {"soma", "axon", "dendrite", "apical_dendrite"}
+	dendSubsets = "dendrite, apical_dendrite"
+else
+	gridName = "grids/31o_pyramidal19aFI.CNG.ugx"
+	gridSyn  = "grids/31o_pyramidal19aFI.CNG_syn.ugx"
+	gridDeg  = "grids/31o_pyramidal19aFI.CNG_syn_deg.ugx"
+	distro   = {0.0, 1.0, 0.0}
+	neededSubsets = {"soma", "dendrite", "axon"}
+	dendSubsets = "dendrite"
+end
 
 -- parameters steering simulation
-numPreRefs	= util.GetParamNumber("-numPreRefs",	0)
 numRefs		= util.GetParamNumber("-numRefs",		0)
 dt			= util.GetParamNumber("-dt",			1e-5) -- in s
 endTime		= util.GetParamNumber("-endTime",	  	1.0)  -- in s
 nSteps 		= util.GetParamNumber("-nSteps",		endTime/dt)
 pstep		= util.GetParamNumber("-pstep",			dt,		"plotting interval")
 
+-- synapse activity parameters
+avg_start = util.GetParamNumber("-avgStart"	,  0.03)
+avg_dur = util.GetParamNumber(	"-avgDur"	,  2.4e-3)
+dev_start = util.GetParamNumber("-devStart"	,  0.015)
+dev_dur = util.GetParamNumber(	"-devDur"	,  0.0)
+num_synapses = util.GetParamNumber("-nSyn", 140)
 
-print(" chosen parameters:")
-print("    numRefs    = " .. numRefs)
-print("    numPreRefs = " .. numPreRefs)
-print("    grid       = " .. gridName)
-print("    pstep       = " .. pstep)
-
--- Synapse activity parameters
-avg_start = util.GetParamNumber("-avgStart"	,  30.0)
-avg_dur = util.GetParamNumber(	"-avgDur"	,   2.4)
-dev_start = util.GetParamNumber("-devStart"	,  15.0)
-dev_dur = util.GetParamNumber(	"-devDur"	,   0.0)
-
-
-
---------------------------------------------------------------------------------
--- Synapse distributions via plugin by Lukas Reinhardt
--- (SplitSynapses)
---------------------------------------------------------------------------------
---30 alphasynapses (15 post- and 15 presynapses)
-alphasyns = AlphaSynapses(0, 200)
-alphasyns:set_mean_gMax(1.2e-9)
-alphasyns:set_dev_gMax(1e-10)
-alphasyns:set_mean_onset(0.001)
-alphasyns:set_dev_onset(1e-7)
-alphasyns:set_mean_tau(0.0004)
-alphasyns:set_dev_tau(1e-7)
-alphasyns:set_mean_e(0.00)
-alphasyns:set_dev_e(1e-7)
-
---60 exp2synapses not used for now
-exp2syns = Exp2Synapses(14,30)
-exp2syns:set_mean_tau1(3)
-exp2syns:set_dev_tau1(1)
-exp2syns:set_mean_tau2(4)
-exp2syns:set_dev_tau2(1)
-exp2syns:set_mean_e(5)
-exp2syns:set_dev_e(0.5)
-exp2syns:set_mean_w(1)
-exp2syns:set_dev_w(0.2)
-
-gridSyn = "grids/13-L3pyr-77.CNG.syn.ugx"
--- Instantiate SplitSynapseDistributor object and distribute synapses on the grid
-synDistr = SplitSynapseDistributor(gridName, gridSyn, false)
-synDistr:place_synapses_uniform(alphasyns:get_synapses())
---synDistr:place_synapses_uniform(exp2syns:get_synapses())
-synDistr:print_status()
-print(synDistr:export_grid())
-
-gridName = gridSyn
-
-
+-- with simulation of single ion concentrations?
+withIons = util.HasParamOption("-ions")
 
 -- specify "-verbose" to output linear solver convergence
 verbose	= util.HasParamOption("-verbose")
 
 -- vtk output?
-generateVTKoutput	= util.HasParamOption("-vtk")
+generateVTKoutput = util.HasParamOption("-vtk")
+
+-- profiling?
+doProfiling = util.HasParamOption("-profile")
+SetOutputProfileStats(doProfiling)
 
 -- file handling
 filename = util.GetParam("-outName", "sol_new_clearance_1e-3")
-filename = filename.."/"
+filename = filename .. "/"
+
+--------------------------------------------------------------------------------
+-- Synapse distributions via plugin by Lukas Reinhardt
+--------------------------------------------------------------------------------
+--[[
+synDistr = SynapseDistributor(gridName)
+synDistr:clear() -- clear any synapses from grid
+synDistr:place_synapses(distro, num_synapses, "AlphaPostSynapse")
+export_succes = synDistr:export_grid(gridSyn)
+print("SynapseDistributor grid export successful: " .. tostring(export_succes))
+--]]
+
+gridName = gridSyn
+
+--------------------------------------------------------------------------------
+-- Synapse degeneration
+--------------------------------------------------------------------------------
+---[[
+deg_factor = util.GetParamNumber("-degFac", 0.5)
+deg_factor = deg_factor + 0.5/num_synapses -- rounding instead of floor-ing
+
+synDistr = SynapseDistributor(gridName)
+--synDistr:print_status()
+if cell == "12-L3pyr" then
+	synDistr:degenerate_uniform(deg_factor, 2) -- first factor means: newNumber = (1-factor)*oldNumber
+	synDistr:degenerate_uniform(deg_factor, 3) -- second param is the subset index
+else
+	synDistr:degenerate_uniform(deg_factor, 1)
+end
+synDistr:print_status()
+synDistr:export_grid(gridDeg)
+
+gridName = gridDeg
+--]]
 
 --------------------------------------------------------------
 -- File i/o setup for sample calcium concentration measurement
@@ -181,22 +171,14 @@ temp = 37.0
 --------------------------------------------------------------------------------
 -- Create, Load, Refine Domain
 --------------------------------------------------------------------------------
-if cell == "12-L3pyr" then
-	neededSubsets = {"soma", "axon", "dendrite", "apical_dendrite"}
-else
-	neededSubsets = {"soma", "dendrite", "axon"}
+dom = util.CreateDomain(gridName, numRefs, neededSubsets)
+
+-- check domain is acyclic
+isAcyclic = is_acyclic(dom)
+if not isAcyclic then
+	print("Domain is not acyclic!")
+	exit()
 end
---dom = util.CreateDomain(gridName, numRefs, neededSubsets)
-dom = util.CreateAndDistributeDomain(gridName, numRefs, numPreRefs, neededSubsets, "metis")
-
---------------------------------------------------------------------------------
--- Distribute Domain
---------------------------------------------------------------------------------
---util.DistributeDomain(dom, "metis")
-
---print("Saving parallel grid layout")
---SaveParallelGridLayout(dom:grid(), "parallel_grid_layout_p"..ProcRank()..".ugx", 1e-5)
-
 
 --------------------------------------------------------------------------------
 -- create Approximation Space
@@ -204,9 +186,11 @@ dom = util.CreateAndDistributeDomain(gridName, numRefs, numPreRefs, neededSubset
 --print("Create ApproximationSpace needs to be somewhere else")
 approxSpace = ApproximationSpace(dom)
 approxSpace:add_fct("v", "Lagrange", 1)
-approxSpace:add_fct("k", "Lagrange", 1)
-approxSpace:add_fct("na", "Lagrange", 1)
-approxSpace:add_fct("ca", "Lagrange", 1)
+if withIons then
+	approxSpace:add_fct("k", "Lagrange", 1)
+	approxSpace:add_fct("na", "Lagrange", 1)
+	approxSpace:add_fct("ca", "Lagrange", 1)
+end
 
 approxSpace:init_levels();
 approxSpace:init_surfaces();
@@ -216,15 +200,8 @@ approxSpace:print_statistic()
 OrderCuthillMcKee(approxSpace, true);
 
 
---------------------------------------------------------------------------------
---CableEquation constructor creates every needed concentration out of added Channels from Channel list
---------------------------------------------------------------------------------
 -- cable equation
-if cell == "12-L3pyr" then
-	CE = CableEquation("soma, axon, dendrite, apical_dendrite")
-else
-	CE = CableEquation("soma, dendrite, axon")
-end
+CE = CableEquation("soma, axon, " .. dendSubsets, withIons)
 
 CE:set_spec_cap(spec_cap)
 CE:set_spec_res(spec_res)
@@ -243,122 +220,88 @@ CE:set_temperature_celsius(temp)
 
 
 -- Hodgkin and Huxley channels
---HH = ChannelHHNernst("v, k, na", "axon")
-HHaxon = ChannelHH("v", "axon")
-HHaxon:set_conductances(g_k_ax, g_na_ax)
-HHsoma = ChannelHH("v", "soma")
-HHsoma:set_conductances(g_k_so, g_na_so)
-if cell == "12-L3pyr" then
-	HHdend = ChannelHH("v", "dendrite, apical_dendrite")
+if withIons == true then
+	HH = ChannelHHNernst("v", "axon, soma, " .. dendSubsets)
 else
-	HHdend = ChannelHH("v", "dendrite")
+	HH = ChannelHH("v", "axon, soma, " .. dendSubsets)
 end
-HHdend:set_conductances(g_k_de, g_na_de)
+HH:set_conductances(g_k_ax, g_na_ax, "axon")
+HH:set_conductances(g_k_so, g_na_so, "soma")
+HH:set_conductances(g_k_de, g_na_de, dendSubsets)
 
-CE:add(HHaxon)
-CE:add(HHsoma)
-CE:add(HHdend)
-
-
---Calcium dynamics
-vdcc = VDCC_BG_cable("ca", "dendrite, soma, apical_dendrite")
-ncx = NCX_cable("v, ca", "dendrite, soma, apical_dendrite")
-pmca = PMCA_cable("v, ca", "dendrite, soma, apical_dendrite")
-caLeak = IonLeakage("", "dendrite, soma, apical_dendrite")
-caLeak:set_leaking_quantity("ca")
-leakCaConst = -3.4836065573770491e-9 +	-- single pump PMCA flux density (mol/s/m^2)
-			  -1.0135135135135137e-9 +	-- single pump NCX flux (mol/s/m^2)
-			  3.3017662162505882e-11
-caLeak:set_perm(leakCaConst, ca_in, ca_out, v_eq, 2)
-
-CE:add(ncx)
-CE:add(pmca)
-CE:add(vdcc)
-CE:add(caLeak)
+CE:add(HH)
 
 
 -- leakage
 tmp_fct = math.pow(2.3,(temp-23.0)/10.0)
 
-leakAxon = ChannelLeak("v", "axon")
-leakAxon:set_cond(g_l_ax*tmp_fct)
-leakAxon:set_rev_pot(-0.066148458)
-leakSoma = ChannelLeak("v", "soma")
-leakSoma:set_cond(g_l_so*tmp_fct)
-leakSoma:set_rev_pot(-0.030654022)
-if cell == "12-L3pyr" then
-	leakDend = ChannelLeak("v", "dendrite, apical_dendrite")
-else
-	leakDend = ChannelLeak("v", "dendrite")
-end
-leakDend:set_cond(g_l_de*tmp_fct)
-leakDend:set_rev_pot(-0.057803624)
+leak = ChannelLeak("v", "axon, soma, " .. dendSubsets)
+leak:set_cond(g_l_ax*tmp_fct, "axon")
+leak:set_rev_pot(-0.066210342630746467, "axon")
+leak:set_cond(g_l_so*tmp_fct, "soma")
+leak:set_rev_pot(-0.022074360525636, "soma")
+leak:set_cond(g_l_de*tmp_fct, dendSubsets)
+leak:set_rev_pot(-0.056314322586687, dendSubsets)
 
-CE:add(leakAxon)
-CE:add(leakSoma)
-CE:add(leakDend)
+CE:add(leak)
+
+
+-- Calcium dynamics
+if withIons then
+	vdcc = VDCC_BG_cable("ca", "soma, " .. dendSubsets)
+	ncx = NCX_cable("ca", "soma, " .. dendSubsets)
+	pmca = PMCA_cable("ca", "soma, " .. dendSubsets)
+	caLeak = IonLeakage("ca", "soma, " .. dendSubsets)
+	leakCaConst = -3.4836065573770491e-9 +	-- single pump PMCA flux density (mol/s/m^2)
+				  -1.0135135135135137e-9 +	-- single pump NCX flux (mol/s/m^2)
+				  3.3017662162505882e-11
+	caLeak:set_perm(leakCaConst, ca_in, ca_out, v_eq, 2)
+	
+	CE:add(ncx)
+	CE:add(pmca)
+	CE:add(vdcc)
+	CE:add(caLeak)
+end
 
 
 -- synapses
-syn_handler = SplitSynapseHandler()
---syn_handler:set_presyn_subset("PreSynapse")
+syn_handler = SynapseHandler()
 syn_handler:set_ce_object(CE)
---[[
-syn_handler:set_activation_timing(
-	avg_start,	-- average start time of synaptical activity in ms
-	avg_dur,	-- average duration of activity in ms (10)
-	dev_start,	-- deviation of start time in ms
-	dev_dur,	-- deviation of duration in ms
-	1.2e-3)		-- peak conductivity in [uS]
-]]--
+syn_handler:set_activation_timing_alpha(
+	avg_start,	 -- average onset of synaptical activity in [s]
+	avg_dur/6.0, -- average tau of activity function in [s]
+	dev_start,   -- deviation of onset in [s]
+	dev_dur/6.0, -- deviation of tau in [s]
+	1.2e-9)		 -- peak conductivity in [S]
 CE:set_synapse_handler(syn_handler)
 
---CE:set_synapse_distributor(sd)
+
+--[[
+-- electrode stimulation
+-- 5nA seem to enervate the pyramidal cell with uniform diameters of 1um
+-- (coords for 13-L3pyr-77.CNG.ugx, current given in C/ms)
+CE:set_influx(5e-9, 6.54e-05, 2.665e-05, 3.985e-05, 0.0, 0.04)			-- near soma
+CE:set_influx(5e-9, 3.955e-06, 1.095e-06, -3.365e-06, 0.001, 0.0025)		-- 1st edge soma to dend
+CE:set_influx(0.3e-9, 3.955e-06, 1.095e-06, -3.365e-06, 0.0, 0.03)		-- 1st 1st edge soma to dend
+CE:set_influx(0.095e-9, 0.0, 0.0, 0.0, 0.1, 0.1)							-- soma center vertex
+CE:set_influx(0.2e-9, 0.0, 0.0, 0.0, 0.005, 0.0005)						-- soma center vertex
+CE:set_influx(10.0e-9, 0.000139, 0.00020809, -2.037e-05, 0.005, 0.005)	-- distal apical dendrite vertex v1
+CE:set_influx(10.0e-9, -3.96e-06, 0.0002173, -5.431e-05, 0.005, 0.005)	-- distal apical dendrite vertex v2
+--]]
 
 
-
---------------------------------------------------------------------------------
---	ELECTRODE STIMULATION SETUP
---------------------------------------------------------------------------------
-
---  INFO: coords for 31o_pyramidal19aFI.CNG_with_subsets.ugx --
-
---	ELECTRODE STIMULATION near soma: 5nA seem to inervate the pyramidal cell with uniform diameters of 1um
---CE:set_influx(5e-9, 6.54e-05, 2.665e-05, 3.985e-05, 0.0, 0.04) -- current given in A
-
---	!!! DO NOT USE!!! ELECTRODE STIMULATION into soma: 5nA seem to enervate the pyramidal cell with attached diameters (also causing backpropagating APs)
---CE:set_influx(5e-9, 6.9e-06, 3.74e-05, -2.86e-05, 0.0, 0.04) -- current given in A
-
-
--- INFO: coords for 13-L3pyr-77.CNG.ugx --current given in C/ms --
-
---CE:set_influx(5e-9, 3.955e-06, 1.095e-06, -3.365e-06, 0.001, 0.0025) -- 1st edge soma to dend
---CE:set_influx(0.3e-9, 3.955e-06, 1.095e-06, -3.365e-06, 0.0, 0.03) -- 1st 1st edge soma to dend
---CE:set_influx(0.095e-9, 0.0, 0.0, 0.0, 0.1, 0.1) -- soma center vertex
---CE:set_influx(0.2e-9, 0.0, 0.0, 0.0, 0.005, 0.0005) -- soma center vertex
---CE:set_influx(10.0e-9, 0.000139, 0.00020809, -2.037e-05, 0.005, 0.005) -- distal apical dendrite vertex v1
---CE:set_influx(10.0e-9, -3.96e-06, 0.0002173, -5.431e-05, 0.005, 0.005) -- distal apical dendrite vertex v2
--------------------------------------------
---  Setup Domain Discretization
--------------------------------------------
-
+-- create domain discretization
 domainDisc = DomainDiscretization(approxSpace)
 domainDisc:add(CE)
 
 assTuner = domainDisc:ass_tuner()
 
--------------------------------------------
---  Setup Time Discretization
--------------------------------------------
 
 -- create time discretization
 timeDisc = ThetaTimeStep(domainDisc)
 timeDisc:set_theta(1.0)
 
 
--------------------------------------------
---  Algebra
--------------------------------------------
 -- create operator from discretization
 linOp = AssembledLinearOperator(timeDisc)
 
@@ -383,7 +326,6 @@ cgSolver:set_convergence_check(linConvCheck)
 ----------------------
 -- time stepping	--
 ----------------------
-
 time = 0.0
 
 -- init solution
@@ -391,13 +333,15 @@ u = GridFunction(approxSpace)
 b = GridFunction(approxSpace)
 u:set(0.0)
 Interpolate(v_eq, u, "v")
-Interpolate(k_in, u, "k");
-Interpolate(na_in, u, "na");
-Interpolate(ca_in, u, "ca")
+if withIons then
+	Interpolate(k_in, u, "k");
+	Interpolate(na_in, u, "na");
+	Interpolate(ca_in, u, "ca")
+end
 
 
 -- write start solution
-if (generateVTKoutput) then 
+if generateVTKoutput then 
 	out = VTKOutput()
 	out:print(filename.."vtk/solution", u, 0, time)
 end
@@ -414,8 +358,6 @@ lv = 0
 maxLv = 10
 cb_counter = {}
 cb_counter[lv] = 0
-
-
 
 while endTime-time > 0.001*curr_dt do
 		-- setup time Disc for old solutions and timestep
@@ -460,9 +402,7 @@ while endTime-time > 0.001*curr_dt do
 	-- assemble linear problem
 	matrixIsConst = time ~= 0.0 and dtChanged == false
 	assTuner:set_matrix_is_const(matrixIsConst)
-	if AssembleLinearOperatorRhsAndSolution(linOp, u, b) == false then 
-		print("Could not assemble operator"); exit(); 
-	end
+	AssembleLinearOperatorRhsAndSolution(linOp, u, b)
 	
 	-- synchronize (for profiling)
 	PclDebugBarrierAll()
@@ -470,8 +410,7 @@ while endTime-time > 0.001*curr_dt do
 	-- apply linear solver
 	ilu:set_disable_preprocessing(matrixIsConst)
 	if ApplyLinearSolver(linOp, u, b, cgSolver) == false then
-		exit()
-		print("Could not apply linear solver.");
+		print("Could not apply linear solver.")
 		exit()
 	end
 	
@@ -483,20 +422,24 @@ while endTime-time > 0.001*curr_dt do
 			vm_dend  = EvaluateAtClosestVertex(MakeVec(8.304e-05, -1.982e-05, -8.4e-06), 	u, "v", "dendrite", 		dom:subset_handler())
 			vm_aDend = EvaluateAtClosestVertex(MakeVec(-3.84e-06, 0.00018561, -3.947e-05), 	u, "v", "apical_dendrite", 	dom:subset_handler())
 			measOutVm:write(time, "\t", vm_soma, "\t", vm_axon, "\t", vm_dend, "\t", vm_aDend, "\n")
-			ca_soma  = EvaluateAtClosestVertex(MakeVec(0.0, 0.0, 0.0), 						u, "ca", "soma", 		dom:subset_handler())
-			ca_axon  = EvaluateAtClosestVertex(MakeVec(-3.828e-05, -0.00013166, -2.34e-05), u, "ca", "axon", 		dom:subset_handler())
-			ca_dend  = EvaluateAtClosestVertex(MakeVec(8.304e-05, -1.982e-05, -8.4e-06), 	u, "ca", "dendrite", 		dom:subset_handler())
-			ca_aDend = EvaluateAtClosestVertex(MakeVec(-3.84e-06, 0.00018561, -3.947e-05), 	u, "ca", "apical_dendrite", 	dom:subset_handler())
-			measOutCa:write(time, "\t", ca_soma, "\t", ca_axon, "\t", ca_dend, "\t", ca_aDend, "\n")
+			if (withIons) then
+				ca_soma  = EvaluateAtClosestVertex(MakeVec(0.0, 0.0, 0.0), 						u, "ca", "soma", 		dom:subset_handler())
+				ca_axon  = EvaluateAtClosestVertex(MakeVec(-3.828e-05, -0.00013166, -2.34e-05), u, "ca", "axon", 		dom:subset_handler())
+				ca_dend  = EvaluateAtClosestVertex(MakeVec(8.304e-05, -1.982e-05, -8.4e-06), 	u, "ca", "dendrite", 		dom:subset_handler())
+				ca_aDend = EvaluateAtClosestVertex(MakeVec(-3.84e-06, 0.00018561, -3.947e-05), 	u, "ca", "apical_dendrite", 	dom:subset_handler())
+				measOutCa:write(time, "\t", ca_soma, "\t", ca_axon, "\t", ca_dend, "\t", ca_aDend, "\n")
+			end
 		else	
 			vm_soma  = EvaluateAtClosestVertex(MakeVec(6.9e-07, 3.74e-06, -2.86e-06), 		u, "v", "soma", 		dom:subset_handler())
 			vm_axon  = EvaluateAtClosestVertex(MakeVec(-4.05e-06, 6.736e-05, -1.341e-05), 	u, "v", "axon", 		dom:subset_handler())
 			vm_dend  = EvaluateAtClosestVertex(MakeVec(-4.631e-05, -0.0001252, 4.62e-06), 	u, "v", "dendrite", 	dom:subset_handler())
 			measOutVm:write(time, "\t", vm_soma, "\t", vm_axon, "\t", vm_dend, "\t", -65, "\n")
-			ca_soma  = EvaluateAtClosestVertex(MakeVec(6.9e-07, 3.74e-06, -2.86e-06), 		u, "ca", "soma", 		dom:subset_handler())
-			ca_axon  = EvaluateAtClosestVertex(MakeVec(-4.05e-06, 6.736e-05, -1.341e-05), 	u, "ca", "axon", 		dom:subset_handler())
-			ca_dend  = EvaluateAtClosestVertex(MakeVec(-4.631e-05, -0.0001252, 4.62e-06), 	u, "ca", "dendrite", 	dom:subset_handler())
-			measOutCa:write(time, "\t", ca_soma, "\t", ca_axon, "\t", ca_dend, "\t", -65, "\n")
+			if (withIons) then
+				ca_soma  = EvaluateAtClosestVertex(MakeVec(6.9e-07, 3.74e-06, -2.86e-06), 		u, "ca", "soma", 		dom:subset_handler())
+				ca_axon  = EvaluateAtClosestVertex(MakeVec(-4.05e-06, 6.736e-05, -1.341e-05), 	u, "ca", "axon", 		dom:subset_handler())
+				ca_dend  = EvaluateAtClosestVertex(MakeVec(-4.631e-05, -0.0001252, 4.62e-06), 	u, "ca", "dendrite", 	dom:subset_handler())
+				measOutCa:write(time, "\t", ca_soma, "\t", ca_axon, "\t", ca_dend, "\t", -65, "\n")
+			end
 		end
 	end
 	
@@ -531,4 +474,11 @@ if ProcRank() == 0 then
 	measOutVm:close()
 	measOutCa:close()
 end
+
+if doProfiling then
+	WriteProfileData(filename .."pd.pdxml")
+end
+
+
+
 	

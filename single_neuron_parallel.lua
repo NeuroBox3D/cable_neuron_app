@@ -16,56 +16,6 @@ ug_load_script("ug_util.lua")
 ug_load_script("util/load_balancing_util.lua")
 
 
---------------------------------------------------------------------------------
--- Cell specification
---------------------------------------------------------------------------------
-cell = util.GetParam("-cellName", "12-L3pyr")
-if not cell == "12-L3pyr" or not cell == "31o_pyr" then
-	exit("Cell not specified correctly. Type '12-L3pyr' or '31o_pyr'.")
-end
-
---------------------------------------------------------------------------------
--- Synapse distributions via plugin by Lukas Reinhardt
---------------------------------------------------------------------------------
-num_synapses = util.GetParamNumber("-nSyn", 140)
-
-rank = ProcRank()
-rankAsString = string.format("%02d", rank)
-
---[[
-sd = SynapseDistributor("grids/13-L3pyr-77.CNG.ugx", "../apps/cable_neuron_app/grids/13-L3pyr-77.CNG_syn_p"..rankAsString..".ugx", true)
-sd:place_synapses({0.0, 0.0, 0.5, 0.5}, num_synapses)
-
-sd:export_grid()
---]]
---------------------------------------------------------------------------------
--- Synapse degeneration
---------------------------------------------------------------------------------
--- load cell with fixed alpha synapse distribution
----[[
---gridName = util.GetParam("-grid", "../apps/cable_neuron_app/grids/13-L3pyr-77.CNG_syn.ugx")
-
-deg_factor = util.GetParamNumber("-degFac", 0.5)
--- ensure correct number:
-deg_factor = deg_factor + 0.5/num_synapses
-
-sd = SynapseDistributor("../apps/cable_neuron_app/grids/13-L3pyr-77.CNG_syn_p"..rankAsString..".ugx",
-						"../apps/cable_neuron_app/grids/13-L3pyr-77.CNG_syn_p"..rankAsString.."_deg.ugx", false)
-sd:degenerate_uniform(deg_factor, 2) -- first factor means: newNumber = (1-factor)*oldNumber
-sd:degenerate_uniform(deg_factor, 3) -- second param is the subset index
-sd:print_status()
-sd:export_grid()
---gridName = util.GetParam("-grid", "grids/13-L3pyr-77.CNG_a30synch500.ugx")
---]]
-
-
---------------------------------------------------------------------------------
--- UG4-Standard-Settings
---------------------------------------------------------------------------------
-gridName = util.GetParam("-grid", "../apps/cable_neuron_app/grids/13-L3pyr-77.CNG_syn_p"..rankAsString.."_deg.ugx")
-
-print(gridName);
-
 -- dimension
 dim = 3
 
@@ -73,26 +23,47 @@ dim = 3
 InitUG(dim, AlgebraType("CPU", 1));
 AssertPluginsLoaded({"cable_neuron"})
 
+
+--------------------------------------------------------------------------------
+-- Settings
+--------------------------------------------------------------------------------
+cell = util.GetParam("-cellName", "12-L3pyr")
+if not cell == "12-L3pyr" or not cell == "31o_pyr" then
+	exit("Cell not specified correctly. Type '12-L3pyr' or '31o_pyr'.")
+end
+
+rank = ProcRank()
+rankAsString = string.format("%02d", rank)
+
+if cell == "12-L3pyr" then
+	gridName = "grids/13-L3pyr-77.CNG.ugx"
+	gridSyn  = "grids/13-L3pyr-77.CNG_syn_p"..rankAsString..".ugx"
+	gridDeg  = "grids/13-L3pyr-77.CNG_syn_p"..rankAsString.."_deg.ugx"
+	distro   = {0.0, 0.0, 0.5, 0.5}
+	neededSubsets = {"soma", "axon", "dendrite", "apical_dendrite"}
+	dendSubsets = "dendrite, apical_dendrite"
+else
+	gridName = "grids/31o_pyramidal19aFI.CNG.ugx"
+	gridSyn  = "grids/31o_pyramidal19aFI.CNG_syn_p"..rankAsString..".ugx"
+	gridDeg  = "grids/31o_pyramidal19aFI.CNG_syn_p"..rankAsString.."_deg.ugx"
+	distro   = {0.0, 1.0, 0.0}
+	neededSubsets = {"soma", "dendrite", "axon"}
+	dendSubsets = "dendrite"
+end
+
 -- parameters steering simulation
-numPreRefs	= util.GetParamNumber("-numPreRefs",	0)
 numRefs		= util.GetParamNumber("-numRefs",		0)
 dt			= util.GetParamNumber("-dt",			1e-5) -- in s
-endTime		= util.GetParamNumber("-endTime",	 	0.01)
+endTime		= util.GetParamNumber("-endTime",	 	0.01) -- in s
 nSteps 		= util.GetParamNumber("-nSteps",		endTime/dt)
 pstep		= util.GetParamNumber("-pstep",			dt,		"plotting interval")
 
-
-print(" chosen parameters:")
-print("    numRefs    = " .. numRefs)
-print("    numPreRefs = " .. numPreRefs)
-print("    grid       = " .. gridName)
-print("    pstep       = " .. pstep)
-
--- Synapse activity parameters
-avg_start = util.GetParamNumber("-avgStart"	,  30.0)
-avg_dur = util.GetParamNumber(	"-avgDur"	,   2.4)
-dev_start = util.GetParamNumber("-devStart"	,  15.0)
-dev_dur = util.GetParamNumber(	"-devDur"	,   0.0)
+-- synapse activity parameters
+avg_start = util.GetParamNumber("-avgStart"	,  0.03)
+avg_dur = util.GetParamNumber(	"-avgDur"	,  2.4e-3)
+dev_start = util.GetParamNumber("-devStart"	,  0.015)
+dev_dur = util.GetParamNumber(	"-devDur"	,  0.0)
+num_synapses = util.GetParamNumber("-nSyn", 140)
 
 -- specify "-verbose" to output linear solver convergence
 verbose	= util.HasParamOption("-verbose")
@@ -103,6 +74,39 @@ generateVTKoutput	= util.HasParamOption("-vtk")
 -- file handling
 filename = util.GetParam("-outName", "sol_new_clearance_1e-3")
 filename = filename.."/"
+
+--------------------------------------------------------------------------------
+-- Synapse distributions via plugin by Lukas Reinhardt
+--------------------------------------------------------------------------------
+---[[
+synDistr = SynapseDistributor(gridName)
+synDistr:clear() -- clear any synapses from grid
+synDistr:place_synapses(distro, num_synapses, "AlphaPostSynapse")
+export_succes = synDistr:export_grid(gridSyn)
+print("SynapseDistributor grid export successful: " .. tostring(export_succes))
+--]]
+
+gridName = gridSyn
+
+--------------------------------------------------------------------------------
+-- Synapse degeneration
+--------------------------------------------------------------------------------
+---[[
+deg_factor = util.GetParamNumber("-degFac", 0.5)
+deg_factor = deg_factor + 0.5/num_synapses -- rounding instead of floor-ing
+
+synDistr = SynapseDistributor(gridName)
+if cell == "12-L3pyr" then
+	synDistr:degenerate_uniform(deg_factor, 2) -- first factor means: newNumber = (1-factor)*oldNumber
+	synDistr:degenerate_uniform(deg_factor, 3) -- second param is the subset index
+else
+	synDistr:degenerate_uniform(deg_factor, 1)
+end
+synDistr:print_status()
+synDistr:export_grid(gridDeg)
+
+gridName = gridDeg
+--]]
 
 --------------------------------------------------------------
 -- File i/o setup for sample calcium concentration measurement
@@ -172,6 +176,13 @@ temp = 37.0
 dom = Domain()
 LoadDomain(dom, gridName, -2) -- means: load on every proc
 
+-- check domain is acyclic
+isAcyclic = is_acyclic(dom)
+if not isAcyclic then
+	print("Domain is not acyclic!")
+	exit()
+end
+
 if numRefs > 0 then
 	local refiner = GlobalDomainRefiner(dom)
 	for i=1,numRefs do
@@ -198,15 +209,9 @@ approxSpace:print_layout_statistic()
 approxSpace:print_statistic()
 OrderCuthillMcKee(approxSpace, true);
 
---------------------------------------------------------------------------------
---CableEquation constructor creates every needed concentration out of added Channels from Channel list
---------------------------------------------------------------------------------
+
 -- cable equation
-if cell == "12-L3pyr" then
-	CE = CableEquation("soma, axon, dendrite, apical_dendrite")
-else
-	CE = CableEquation("soma, dendrite, axon")
-end
+CE = CableEquation("soma, axon, " .. dendSubsets, true)
 
 CE:set_spec_cap(spec_cap)
 CE:set_spec_res(spec_res)
@@ -223,41 +228,35 @@ CE:set_diff_coeffs({diff_k, diff_na, diff_ca})
 
 CE:set_temperature_celsius(temp)
 
-ss_dend = ""
-if cell == "12-L3pyr" then
-	ss_dend = "dendrite, apical_dendrite"
-else
-	ss_dend = "dendrite"
-end
 
 -- Hodgkin and Huxley channels
-HH = ChannelHH("v", "axon, soma, dendrite, apical_dendrite")
+HH = ChannelHH("v", "axon, soma, " .. dendSubsets)
 HH:set_conductances(g_k_ax, g_na_ax, "axon")
 HH:set_conductances(g_k_so, g_na_so, "soma")
-HH:set_conductances(g_k_de, g_na_de, ss_dend)
+HH:set_conductances(g_k_de, g_na_de, dendSubsets)
 
 CE:add(HH)
+
 
 -- leakage
 tmp_fct = math.pow(2.3,(temp-23.0)/10.0)
 
-leak = ChannelLeak("v", "axon, soma, dendrite, apical_dendrite")
+leak = ChannelLeak("v", "axon, soma, " .. dendSubsets)
 leak:set_cond(g_l_ax*tmp_fct, "axon")
 leak:set_rev_pot(-0.066148458, "axon")
 leak:set_cond(g_l_so*tmp_fct, "soma")
 leak:set_rev_pot(-0.030654022, "soma")
-leak:set_cond(g_l_de*tmp_fct, ss_dend)
-leak:set_rev_pot(-0.057803624, ss_dend)
+leak:set_cond(g_l_de*tmp_fct, dendSubsets)
+leak:set_rev_pot(-0.057803624, dendSubsets)
 
 CE:add(leak)
 
 
 --Calcium dynamics
-vdcc = VDCC_BG_cable("ca", "dendrite, soma, apical_dendrite")
-ncx = NCX_cable("v, ca", "dendrite, soma, apical_dendrite")
-pmca = PMCA_cable("v, ca", "dendrite, soma, apical_dendrite")
-caLeak = IonLeakage("", "dendrite, soma, apical_dendrite")
-caLeak:set_leaking_quantity("ca")
+vdcc = VDCC_BG_cable("ca", "soma, " .. dendSubsets)
+ncx = NCX_cable("ca", "soma, " .. dendSubsets)
+pmca = PMCA_cable("ca", "soma, " .. dendSubsets)
+caLeak = IonLeakage("ca", "soma, " .. dendSubsets)
 leakCaConst = -3.4836065573770491e-9 +	-- single pump PMCA flux density (mol/s/m^2)
 			  -1.0135135135135137e-9 +	-- single pump NCX flux (mol/s/m^2)
 			  3.3017662162505882e-11
@@ -270,19 +269,18 @@ CE:add(caLeak)
 
 
 -- synapses
-syn_handler = NETISynapseHandler()
+syn_handler = SynapseHandler()
 syn_handler:set_ce_object(CE)
-syn_handler:set_activation_timing(
-	avg_start,	-- average start time of synaptical activity in ms
-	avg_dur,	-- average duration of activity in ms (10)
-	dev_start,	-- deviation of start time in ms
-	dev_dur,	-- deviation of duration in ms
-	1.2e-3,		-- peak conductivity in [uS]
-	true)		-- whether to use const seed
+syn_handler:set_activation_timing_alpha(
+	avg_start,	 -- average onset of synaptical activity in [s]
+	avg_dur/6.0, -- average tau of activity function in [s]
+	dev_start,   -- deviation of onset in [s]
+	dev_dur/6.0, -- deviation of tau in [s]
+	1.2e-9)		 -- peak conductivity in [S]
 CE:set_synapse_handler(syn_handler)
 
 
-
+-- create domain discretization
 domainDisc = DomainDiscretization(approxSpace)
 domainDisc:add(CE)
 
@@ -291,6 +289,7 @@ assTuner = domainDisc:ass_tuner()
 -- create time discretization
 timeDisc = ThetaTimeStep(domainDisc)
 timeDisc:set_theta(1.0)
+
 
 -- create operator from discretization
 linOp = AssembledLinearOperator(timeDisc)
@@ -311,7 +310,6 @@ cgSolver:set_convergence_check(linConvCheck)
 ----------------------
 -- time stepping	--
 ----------------------
-
 time = 0.0
 
 -- init solution

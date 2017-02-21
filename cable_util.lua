@@ -25,7 +25,20 @@ function setup_problem_ug4(
 	
 	-- create domain for calculation
 	local dom = util.CreateDomain(gridName, 0, neededSubsets)
+		
+	-- create approximation space for unknown function v (membrane potential)
+	-- Lagrange 1 space contains all functions that are continuous and
+	-- (piece-wise) linear on each edge of the geometry
+	local approxSpace = ApproximationSpace(dom)
+	approxSpace:add_fct("v", "Lagrange", 1)
 	
+	-- gating functions for HH-Fluxes
+	approxSpace:init_levels();
+	approxSpace:init_surfaces();
+	approxSpace:init_top_surface();
+	local domainDisc = DomainDiscretization(approxSpace)
+	domainDisc:add(cableDisc)
+		
 	-- distribute network to processes automatically
 	balancer.partitioner	= "parmetis"
 	balancer.firstDistLvl	= -1
@@ -42,23 +55,9 @@ function setup_problem_ug4(
 		loadBalancer:print_quality_records()
 	end
 	
-	-- create approximation space for unknown function v (membrane potential)
-	-- Lagrange 1 space contains all functions that are continuous and
-	-- (piece-wise) linear on each edge of the geometry
-	local approxSpace = ApproximationSpace(dom)
-	approxSpace:add_fct("v", "Lagrange", 1)
-	
-	-- gating functions for HH-Fluxes
-	approxSpace:init_levels();
-	approxSpace:init_surfaces();
-	approxSpace:init_top_surface();
-	
 	-- impose order on the unknowns that will ensure linear solver to be fast
 	order_cuthillmckee(approxSpace);
-	
-	local domainDisc = DomainDiscretization(approxSpace)
-	domainDisc:add(cableDisc)
-	
+		
 	-- speeding up the assembling
 	-- UG4 solvers are general purpose solvers, but we have a very special case here
 	-- which we can benefit from in terms of solver speed

@@ -15,11 +15,13 @@ num_synapses = util.GetParamNumber("-nSyn", 100)
 
 inputGrid = "grids/13-L3pyr-77.CNG.ugx"
 gridWithSynapses = "../apps/cable_neuron_app/grids/13-L3pyr-77.CNG_syn.ugx"	
-sd = SynapseDistributor(inputGrid, gridWithSynapses, true)
 
--- place 50% of the num_synapses on subsets 3 and 3 each (basal/apical dendrites) 
-sd:place_synapses({0.0, 0.0, 0.5, 0.5}, num_synapses, 1) -- 1 for type ALPHA_SYNAPSE
-sd:export_grid()
+synDistr = SynapseDistributor(inputGrid)
+synDistr:clear() -- clear any synapses from grid
+synDistr:place_synapses({0.0, 0.0, 0.5, 0.5}, num_synapses, "AlphaPostSynapse")
+export_succes = synDistr:export_grid(gridWithSynapses)
+print("SynapseDistributor grid export successful: " .. tostring(export_succes))
+synDistr:print_status()
 
 --------------------------------------------------------------------------------
 -- UG4-Standard-Settings
@@ -38,12 +40,11 @@ dt			= util.GetParamNumber("-dt",			1e-5) -- in s
 endTime		= util.GetParamNumber("-endTime",	 	0.01)
 pstep		= util.GetParamNumber("-pstep",			dt,		"plotting interval")
 
-
 -- synapse activity parameters
-avg_start = util.GetParamNumber("-avgStart"	, 0.0, "avergae start of activity (ms)")
-avg_dur = util.GetParamNumber(	"-avgDur"	, 2.4, "average duration of activity (ms)")
-dev_start = util.GetParamNumber("-devStart"	, 1.0, "standard deveation of start time (ms)")
-dev_dur = util.GetParamNumber(	"-devDur"	, 0.2, "standard deviation of activity duration (ms)")
+avg_start = util.GetParamNumber("-avgStart"	, 0.0, "avergae start of activity (s)")
+avg_dur = util.GetParamNumber(	"-avgDur"	, 2.4e-3, "average duration of activity (s)")
+dev_start = util.GetParamNumber("-devStart"	, 1e-3, "standard deveation of start time (s)")
+dev_dur = util.GetParamNumber(	"-devDur"	, 2e-4, "standard deviation of activity duration (s)")
 
 -- specify "-verbose" to output linear solver convergence
 verbose	= util.HasParamOption("-verbose")
@@ -153,7 +154,7 @@ OrderCuthillMcKee(approxSpace, true);
 -- discretization
 --------------------------------------------------------------------------------
 -- cable equation
-CE = CableEquation("soma, axon, dendrite, apical_dendrite")
+CE = CableEquation("soma, axon, dendrite, apical_dendrite", true)
 
 CE:set_spec_cap(spec_cap)
 CE:set_spec_res(spec_res)
@@ -214,15 +215,14 @@ CE:add(caLeak)
 
 
 -- set activity pattern for stimulating synapses
-syn_handler = NETISynapseHandler()
+syn_handler = SynapseHandler()
 syn_handler:set_ce_object(CE)
-syn_handler:set_activation_timing(
-	avg_start,	-- average start time of synaptical activity in ms
-	avg_dur,	-- average duration of activity in ms (10)
-	dev_start,	-- deviation of start time in ms
-	dev_dur,	-- deviation of duration in ms
-	1.2e-3,		-- peak conductivity in [uS]
-	true)		-- whether to use const seed
+syn_handler:set_activation_timing_alpha(
+	avg_start,	 -- average onset of synaptical activity in [s]
+	avg_dur/6.0, -- average tau of activity function in [s]
+	dev_start,   -- deviation of onset in [s]
+	dev_dur/6.0, -- deviation of tau in [s]
+	1.2e-9)		 -- peak conductivity in [S]
 CE:set_synapse_handler(syn_handler)
 
 
