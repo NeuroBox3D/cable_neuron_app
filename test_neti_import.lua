@@ -155,50 +155,6 @@ dom = util.CreateDomain(gridName, numPreRefs, neededSubsets)
 test_result = is_acyclic(dom, 2) -- 2 for maximum verbosity
 test.require(test_result == true, "Domain is not acyclic.")
 
-balancer.partitioner = "parmetis"
-
--- balancer.firstDistLvl = -1 will cause immediate distribution to all procs if redistSteps == 0,
--- but will cause first distribution to occur on level redistSteps otherwise!
--- 0 will distribute to firstDistProcs on (grid-)level 0 and then each proc
--- will redistribute to redistProcs on levels i*redistStep (i=1,2,...)
--- AND ALL THIS ONLY if staticProcHierarchy is set to true!
-
-if hDistr == true then
-	balancer.firstDistLvl 		= 0
-	balancer.redistSteps 		= 1
-	balancer.firstDistProcs		= 256
-	balancer.redistProcs		= 256
-else
-	balancer.firstDistLvl		= -1
-	balancer.redistSteps		= 0
-end
-
-balancer.imbalanceFactor		= imbFactor
-balancer.staticProcHierarchy	= true
-balancer.ParseParameters()
-balancer.PrintParameters()
-
--- in parallel environments: use a load balancer to distribute the grid
-loadBalancer = balancer.CreateLoadBalancer(dom)
-if loadBalancer ~= nil then
-	loadBalancer:enable_vertical_interface_creation(bVertIntf)
-	balancer.RefineAndRebalanceDomain(dom, numRefs, loadBalancer)
-
-	print("Edge cut on base level: "..balancer.defaultPartitioner:edge_cut_on_lvl(0))
-	test.require(balancer.defaultPartitioner:edge_cut_on_lvl(0) == 0, "Partitioning cuts a neuron.")
-	
-	loadBalancer:estimate_distribution_quality()
-	loadBalancer:print_quality_records()
-end
-
-print(dom:domain_info():to_string())
-
-
-write(">> done\n")
-
---print("Saving parallel grid layout")
---SaveParallelGridLayout(dom:grid(), "parallel_grid_layout_p"..ProcRank()..".ugx", 1e-5)
-
 -- create Approximation Space
 --print("Create ApproximationSpace needs to be somewhere else")
 approxSpace = ApproximationSpace(dom)
@@ -215,7 +171,6 @@ approxSpace:init_surfaces();
 approxSpace:init_top_surface();
 approxSpace:print_layout_statistic()
 approxSpace:print_statistic()
-order_cuthillmckee(approxSpace);
 
 ----------------------
 -- setup elem discs	--
@@ -295,10 +250,6 @@ domainDisc:add(CE)
 
 assTuner = domainDisc:ass_tuner()
 
--- speed up assembling
-cableAssTuner = CableAssTuner(domainDisc, approxSpace)
-cableAssTuner:remove_ghosts_from_assembling_iterator()
-
 -- time discretization
 timeDisc = ThetaTimeStep(domainDisc)
 timeDisc:set_theta(1.0)
@@ -317,12 +268,73 @@ dbgWriter:set_vtk_output(true)
 linConvCheck = CompositeConvCheck3dCPU1(approxSpace, 20, 2e-26, 1e-08)
 linConvCheck:set_component_check("v", 1e-21, 1e-12)
 linConvCheck:set_verbose(verbose)
+linConvCheck:set_adaptive(true)
 
 ilu = ILU()
 cgSolver = CG()
 cgSolver:set_preconditioner(ilu)
 cgSolver:set_convergence_check(linConvCheck)
 --cgSolver:set_debug(dbgWriter)
+
+
+-------------------------
+-- domain distribution --
+-------------------------
+-- Domain distribution needs to be performed AFTER addition
+-- of the synapse handler to the CE object and addition of the
+-- CE object to the domain disc (i.e.: when the synapse handler
+-- has got access to the grid).
+-- The reason is that the synapse handler needs access to the grid
+-- to correctly distribute the synapse* attachments.
+
+balancer.partitioner = "parmetis"
+
+-- balancer.firstDistLvl = -1 will cause immediate distribution to all procs if redistSteps == 0,
+-- but will cause first distribution to occur on level redistSteps otherwise!
+-- 0 will distribute to firstDistProcs on (grid-)level 0 and then each proc
+-- will redistribute to redistProcs on levels i*redistStep (i=1,2,...)
+-- AND ALL THIS ONLY if staticProcHierarchy is set to true!
+
+if hDistr == true then
+	balancer.firstDistLvl 		= 0
+	balancer.redistSteps 		= 1
+	balancer.firstDistProcs		= 256
+	balancer.redistProcs		= 256
+else
+	balancer.firstDistLvl		= -1
+	balancer.redistSteps		= 0
+end
+
+balancer.imbalanceFactor		= imbFactor
+balancer.staticProcHierarchy	= true
+balancer.ParseParameters()
+balancer.PrintParameters()
+
+-- in parallel environments: use a load balancer to distribute the grid
+loadBalancer = balancer.CreateLoadBalancer(dom)
+if loadBalancer ~= nil then
+	loadBalancer:enable_vertical_interface_creation(bVertIntf)
+	balancer.RefineAndRebalanceDomain(dom, numRefs, loadBalancer)
+
+	print("Edge cut on base level: "..balancer.defaultPartitioner:edge_cut_on_lvl(0))
+	test.require(balancer.defaultPartitioner:edge_cut_on_lvl(0) == 0, "Partitioning cuts a neuron.")
+	
+	loadBalancer:estimate_distribution_quality()
+	loadBalancer:print_quality_records()
+end
+
+print(dom:domain_info():to_string())
+write(">> done\n")
+
+
+-- speed up assembling
+if bVertIntf then
+	cableAssTuner = CableAssTuner(domainDisc, approxSpace)
+	cableAssTuner:remove_ghosts_from_assembling_iterator()
+end
+
+order_cuthillmckee(approxSpace);
+
 
 ----------------------
 -- time stepping	--
