@@ -1,10 +1,14 @@
---------------------------------------------------------------
--- This script solves the cable equation with HH channels, 	--
--- activating specifically set synapses.                    --
---                                                          --
--- author: mbreit                                           --
--- date:   15-02-2017                                       --
---------------------------------------------------------------
+-------------------------------------------------------------------------
+-- This script sets up a simple test for a 1d/3d hybrid simulation.    --
+-- On the 1d domain, it solves the cable equation with HH channels,    --
+-- activating specifically set synapses. On the 3d domain, it solves   --
+-- a calcium problem (diffusion and buffering) with channels and pumps --
+-- in the plasma membrane, where VDCCs are activated according to the  --
+-- potential mapped from the 1d domain.                                --
+--                                                                     --
+-- author: mbreit                                                      --
+-- date:   15-02-2017                                                  --
+-------------------------------------------------------------------------
 
 -- for profiler output
 SetOutputProfileStats(false)
@@ -27,7 +31,7 @@ gridSyn = string.sub(gridName1d, 1, string.len(gridName1d) - 4) .. "_syns.ugx"
 -- parameters for instationary simulation
 dt1d = util.GetParamNumber("-dt1d", 1e-5) -- in s
 dt3d = util.GetParamNumber("-dt3d", 1e-2) -- in s
-dt3dStart = util.GetParamNumber("-dt3dStart", dt3d)
+dt3dStart = util.GetParamNumber("-dt3dstart", dt3d)
 endTime = util.GetParamNumber("-endTime", 1.0)  -- in s
 
 -- with simulation of single ion concentrations?
@@ -160,6 +164,7 @@ end
 
 gridName1d = gridSyn
 
+print("    grid       = " .. gridName1d)
 
 --------------------------
 -- biological settings	--
@@ -324,6 +329,7 @@ leakPMconstant =  pmcaDensity * 6.9672131147540994e-24	-- single pump PMCA flux 
 if (leakPMconstant < 0) then error("PM leak flux is outward for these density settings!") end
 
 
+--[[
 --------------------------------------------
 -- activation function for the 3d problem --
 --------------------------------------------
@@ -356,6 +362,7 @@ function synCurrentDensity(x, y, z, t, si)
 	
 	return 0.0
 end
+--]]
 
 ----------------------------------
 -- setup 3d approximation space --
@@ -491,9 +498,12 @@ discVDCC = MembraneTransportFV1(plMem, vdcc)
 discVDCC:set_density_function(vdccDensity)
 
 -- synaptic activity --
-synapseInflux = UserFluxBoundaryFV1("ca_cyt", plMem)
-synapseInflux:set_flux_function("synCurrentDensity")
-
+--synapseInflux = UserFluxBoundaryFV1("ca_cyt", plMem)
+--synapseInflux:set_flux_function("synCurrentDensity")
+synapseInflux = HybridSynapseCurrentAssembler(approxSpace3d, approxSpace1d, syn_handler, {"pm"}, "ca_cyt")
+synapseInflux:set_current_percentage(0.01)
+synapseInflux:set_scaling_factors(1e15, 1e-6, 1.0)
+synapseInflux:set_valency(2)
 
 -- domain discretization --
 domDisc3d = DomainDiscretization(approxSpace3d)
