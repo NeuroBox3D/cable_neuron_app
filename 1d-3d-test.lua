@@ -54,7 +54,7 @@ verbose3d = util.HasParamOption("-verbose3d")
 
 -- vtk output?
 generateVTKoutput = util.HasParamOption("-vtk")
-pstep = util.GetParamNumber("-pstep",			dt,		"plotting interval")
+pstep = util.GetParamNumber("-pstep", dt3d, "plotting interval")
 
 -- file handling
 filename = util.GetParam("-outName", "hybrid_test")
@@ -95,7 +95,7 @@ print("    outname    = " .. filename)
 -- firing pattern of the synapse
 syn_onset = {0.0, 0.0, 0.0, 0.0, 0.0}
 syn_tau = 4e-4
-syn_gMax = 2.4e-9
+syn_gMax = 1.2e-9
 syn_revPot = 0.0
 
 function file_exists(name)
@@ -350,7 +350,7 @@ function synCurrentDensity(x, y, z, t, si)
 	   		local el_current = - (-0.065 - syn_revPot) * conductance -- [A]
 	   		
 	   		-- about 10% of the current is carried by calcium
-	    	local ionic_current = 0.1 * el_current / (2 * 96485.0) -- [mol/s]
+	    	local ionic_current = 0.01 * el_current / (2 * 96485.0) -- [mol/s]
 	    	
 	    	-- we need a current density!
 	    	local current_density = ionic_current / syn_area[s] -- [mol/(s*um^2)]
@@ -405,11 +405,11 @@ print(dom3d:domain_info():to_string())
 
 
 --[[
---print("Saving domain grid and hierarchy.")
-SaveDomain(dom3d, "refined_grid_p" .. ProcRank() .. ".ugx")
-SaveGridHierarchyTransformed(dom3d:grid(), "refined_grid_hierarchy_p" .. ProcRank() .. ".ugx", 2.0)
+print("Saving domain grid and hierarchy.")
+--SaveDomain(dom3d, "grid/refined_grid_p" .. ProcRank() .. ".ugx")
+SaveGridHierarchyTransformed(dom3d:grid(), dom3d:subset_handler(), filename.."grid/refined_grid_hierarchy_p" .. ProcRank() .. ".ugx", 2.0)
 print("Saving parallel grid layout")
-SaveParallelGridLayout(dom3d:grid(), "parallel_grid_layout_p"..ProcRank()..".ugx", 2.0)
+SaveParallelGridLayout(dom3d:grid(), filename.."grid/parallel_grid_layout_p"..ProcRank()..".ugx", 2.0)
 --]]
 
 -- create approximation space
@@ -498,12 +498,16 @@ discVDCC = MembraneTransportFV1(plMem, vdcc)
 discVDCC:set_density_function(vdccDensity)
 
 -- synaptic activity --
---synapseInflux = UserFluxBoundaryFV1("ca_cyt", plMem)
---synapseInflux:set_flux_function("synCurrentDensity")
-synapseInflux = HybridSynapseCurrentAssembler(approxSpace3d, approxSpace1d, syn_handler, {"pm"}, "ca_cyt")
+--[[
+synapseInflux = UserFluxBoundaryFV1("ca_cyt", plMem)
+synapseInflux:set_flux_function("synCurrentDensity")
+--]]
+---[[
+synapseInflux = HybridSynapseCurrentAssembler(approxSpace3d, approxSpace1d, syn_handler, plMem_vec, "ca_cyt")
 synapseInflux:set_current_percentage(0.01)
-synapseInflux:set_scaling_factors(1e15, 1e-6, 1.0)
+synapseInflux:set_scaling_factors(1e-15, 1e-6, 1.0)
 synapseInflux:set_valency(2)
+--]]
 
 -- domain discretization --
 domDisc3d = DomainDiscretization(approxSpace3d)
