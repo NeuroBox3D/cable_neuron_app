@@ -304,7 +304,7 @@ domDisc1d:add(CE)
 ----------------------------------
 -- total cytosolic calbindin concentration
 -- (four times the real value in order to simulate four binding sites in one)
-totalClb = 4*2.5e-6
+totalClb = 4*10.0e-6
 
 -- diffusion coefficients
 D_cac = 220.0
@@ -353,7 +353,7 @@ function synCurrentDensity(x, y, z, t, si)
 	    	local ionic_current = 0.01 * el_current / (2 * 96485.0) -- [mol/s]
 	    	
 	    	-- we need a current density!
-	    	local current_density = ionic_current / syn_area[s] -- [mol/(s*um^2)]
+	    	local current_density = ionic_current / syn_area[s] -- [mol/(s*um^2)]
 	    	
 	    	-- finally, we need to scale mol -> mol (um/dm)^3
 	    	return current_density * 1e15
