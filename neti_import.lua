@@ -17,7 +17,15 @@ gi = gip:getDefaultNeuronalTopologyImporter()
 -- base name
 baseName = util.GetParam("-name", "testNetwork")
 -- import
-gi:import_txt(baseName.."_secs.txt", baseName.."_connex.txt", baseName.."_synapses.txt", baseName.."_identifier.txt")
+method = util.GetParam("-method", "txt")
 
---print(gi:import_geometry_and_generate_grid(baseName, "swc"))
+if method == "txt" then
+gi:import_txt(baseName.."_secs.txt", baseName.."_connex.txt", baseName.."_synapses.txt", baseName.."_identifier.txt")
+elseif method == "swc" then
+gi:import_geometry_and_generate_grid(baseName, "swc")
+else 
+print("Unknown Method:"..method)
+end
+
+
 
