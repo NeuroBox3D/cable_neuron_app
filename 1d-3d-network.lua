@@ -434,7 +434,8 @@ discVDCC:set_density_function(vdccDensity)
 -- synaptic activity --
 synapseInflux = HybridSynapseCurrentAssembler(approxSpace3d, approxSpace1d, syn_handler, {"pm"}, "ca_cyt")
 synapseInflux:set_current_percentage(0.01)
-synapseInflux:set_scaling_factors(1e15, 1e-6, 1.0)
+synapseInflux:set_3d_neuron_ids({nid})
+synapseInflux:set_scaling_factors(1e-15, 1e-6, 1.0)
 synapseInflux:set_valency(2)
 
 
