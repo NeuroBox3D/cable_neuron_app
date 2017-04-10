@@ -20,11 +20,11 @@ baseName = util.GetParam("-name", "testNetwork")
 method = util.GetParam("-method", "txt")
 
 if method == "txt" then
-gi:import_txt(baseName.."_secs.txt", baseName.."_connex.txt", baseName.."_synapses.txt", baseName.."_identifier.txt")
+	gi:import_txt(baseName.."_secs.txt", baseName.."_connex.txt", baseName.."_synapses.txt", baseName.."_identifier.txt")
 elseif method == "swc" then
-gi:import_geometry_and_generate_grid(baseName, "swc")
+	gi:import_geometry_and_generate_grid(baseName, "swc")
 else 
-print("Unknown Method:"..method)
+	print("Unknown Method: "..method)
 end
 
 

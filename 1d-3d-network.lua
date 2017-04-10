@@ -27,7 +27,6 @@ InitUG(dim, AlgebraType("CPU", 1));
 gridName1d = util.GetParam("-grid1d", "../apps/cable_neuron_app/grids/NMO_05371_1d.ugx")
 gridName3d = util.GetParam("-grid3d", "../apps/cable_neuron_app/grids/NMO_05371_3d_6.ugx")
 numRefs = util.GetParamNumber("-numRefs", 0)
-gridSyn = string.sub(gridName1d, 1, string.len(gridName1d) - 4) .. "_syns.ugx" 
 
 -- parameters for instationary simulation
 dt1d = util.GetParamNumber("-dt1d", 1e-5) -- in s
