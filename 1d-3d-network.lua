@@ -199,13 +199,25 @@ CE:add(HH)
 -- leakage
 tmp_fct = math.pow(2.3,(temp-23.0)/10.0)
 
+-- calculate leakage reversal potential for equilibrium at given potential
+function leakageReversal(gNa, gK, gL, ENa, EK, Veq, m, h, n)
+	return Veq + (gNa*m*m*m*h*(Veq - ENa) + gK*n*n*n*n*(Veq - EK)) / gL
+end
+
+m_inf = 0.0529325
+h_inf = 0.596121
+n_inf = 0.317677
+leakRev_ax = leakageReversal(g_na_ax, g_k_ax, g_l_ax, e_na, e_k, v_eq, m_inf, h_inf, n_inf)
+leakRev_de = leakageReversal(g_na_de, g_k_de, g_l_de, e_na, e_k, v_eq, m_inf, h_inf, n_inf)
+leakRev_so = leakageReversal(g_na_so, g_k_so, g_l_so, e_na, e_k, v_eq, m_inf, h_inf, n_inf)
+
 leak = ChannelLeak("v", ss_axon..", "..ss_dend..", "..ss_soma)
 leak:set_cond(g_l_ax*tmp_fct, ss_axon)
-leak:set_rev_pot(-0.066148458, ss_axon)
+leak:set_rev_pot(leakRev_ax, ss_axon)
 leak:set_cond(g_l_so*tmp_fct, ss_soma)
-leak:set_rev_pot(-0.030654022, ss_soma)
+leak:set_rev_pot(leakRev_so, ss_soma)
 leak:set_cond(g_l_de*tmp_fct, ss_dend)
-leak:set_rev_pot(-0.057803624, ss_dend)
+leak:set_rev_pot(leakRev_de, ss_dend)
 
 CE:add(leak)
 
