@@ -28,7 +28,7 @@ if cell == "12-L3pyr" then
 	gridSyn  = "grids/13-L3pyr-77.CNG_syn.ugx"
 	gridDeg  = "grids/13-L3pyr-77.CNG_syn_deg.ugx"
 	distro   = {0.0, 0.0, 0.5, 0.5}
-	neededSubsets = {"soma", "axon", "axon_myel", "basal", "apical_rad", "apical_lm", "axon_hillock"}
+	neededSubsets = {"soma", "axon", "axon_myel", "basal", "apical_rad", "apical_lm", "axon_hillock", "ranvier_nodes"}
 	dendSubsets = "dendrite, apical_dendrite"
 else
 	gridName = "grids/31o_pyramidal19aFI.CNG.ugx"
@@ -118,6 +118,7 @@ end
 --------------------------
 -- biological settings	--
 --------------------------
+
 -- settings are according to T. Branco
 
 -- membrane conductances (in units of S/m^2)
@@ -128,6 +129,41 @@ g_k_de = 30		-- dendrite
 g_na_ax = 3.0e4
 g_na_so = 1.5e3
 g_na_de = 40.0
+
+
+model_cell = 0 --?
+if model_cell == 0 then
+	na_slope = 0.0 
+	g_na_bar = 0.042 --?units?
+	g_na_ranvier = 1190.47619 * g_na_bar
+else
+	na_slope = 0.005
+	g_na_bar = 0.03
+	g_na_ranvier = 1666.67 * g_na_bar
+end
+
+if model_cell > 1 then
+	ka_factor=1.3
+	g_kap_bar = ka_factor*0.1
+	g_kad_bar = g_kap_bar
+else then 
+	g_kap_bar = 0.1
+	g_kad_bar = g_kap_bar
+end
+
+spinelimit=100
+
+g_na_basal = g_na_bar
+nalimit=275
+
+dslope=0.01
+dlimit=300
+dprox=100
+
+isegfactor=100
+isegfrac=0.8
+
+g_kdr=0.04
 
 g_l_ax = 200.0
 g_l_so = 1.0
@@ -278,6 +314,89 @@ if withIons then
 end
 
 
+-- channels - by nmodl converter
+
+-- for distance dependent values
+function distance_dep_res(x, y, z, si)
+	if (math.sqrt(x*x + y*y + z*z)) >= spinelimit
+	then return spinefactor/spec_res
+	else return spec_res
+	end
+end
+
+function distance_dep_cap(x, y, z, si)
+	if (math.sqrt(x*x + y*y + z*z)) >= spinelimit
+	then return spinefactor*spec_cap
+	else return spec_cap
+	end
+end
+
+function distance_dep_nax(x, y, z, si)
+	if (math.sqrt(x*x + y*y + z*z)) >= nalimit
+	then return (1+limit*na_slope)*g_na_bar
+	else return g_na_bar
+	end
+end
+
+function iseg_nax(x, y, z, si)
+	if (math.sqrt(x*x + y*y + z*z)) >= isegfrac
+	then return isegfactor*g_na_bar
+	else return g_na_bar
+	end
+end
+
+
+
+function distance_dep_d(x, y, z, si)
+	if (math.sqrt(x*x + y*y + z*z)) >= dlimit
+	then xdist = dlimit
+	end
+	if xdist >= dprox then return g_kad_bar*(1+xdist*dslope)
+	else then return g_kap_bar*(1+xdist*dslope)
+	end
+end
+
+
+--passive
+CE:set_spec_res("distance_dep_res", "apical_rad")
+CE:set_spec_res("distance_dep_res", "apical_lm")
+CE:set_spec_cap("distance_dep_cap", "apical_rad")
+CE:set_spec_cap("distance_dep_cap", "apical_lm")
+
+
+--active
+--na
+nax:set_conductances(g_na_bar, "axon")
+nax:set_conductances(g_na_bar, "axon_hillock")
+nax:set_conductances(g_na_bar, "soma")
+nax:set_conductances(g_na_bar, "basal")
+nax:set_conductances(g_na_ran, "ranvier_nodes")
+nax:set_conductances("distance_dep_nax", "apical_rad")
+nax:set_conductances("distance_dep_nax", "apical_lm")
+--nax:set_conductances(g_na_bar, "iseg") intial segment??
+
+
+--ka
+kap:set_conductances(g_kap_bar, "axon")
+kap:set_conductances(g_kap_bar, "axon_hillock")
+kap:set_conductances(g_kap_bar, "soma")
+kap:set_conductances(g_kap_bar, "basal")
+kap:set_conductances(g_kap_bar*0.2, "ranvier_nodes")
+kap:set_conductances("distance_dep_d", "apical_rad")
+kap:set_conductances("distance_dep_d", "apical_lm")
+--kap:set_conductances(g_kap_bar, "iseg")
+
+--kdr
+kdr:set_conductances(g_kdr, "axon")
+kdr:set_conductances(g_kdr, "axon_hillock")
+kdr:set_conductances(g_kdr, "soma")
+kdr:set_conductances(g_kdr, "basal")
+kdr:set_conductances(g_kdr, "ranvier_nodes")
+kdr:set_conductances(g_kdr, "apical_rad")
+kdr:set_conductances(g_kdr, "apical_lm")
+--kdr:set_conductances(g_kdr, "iseg")
+
+--[[
 -- synapses
 syn_handler = SynapseHandler()
 syn_handler:set_ce_object(CE)
@@ -288,7 +407,7 @@ syn_handler:set_activation_timing_alpha(
 	dev_dur/6.0, -- deviation of tau in [s]
 	1.2e-9)		 -- peak conductivity in [S]
 CE:set_synapse_handler(syn_handler)
-
+--]]
 
 --[[
 -- electrode stimulation
