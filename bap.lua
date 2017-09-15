@@ -134,19 +134,19 @@ g_na_de = 40.0
 model_cell = 0 --?
 if model_cell == 0 then
 	na_slope = 0.0 
-	g_na_bar = 0.042 --?units?
-	g_na_ranvier = 1190.47619 * g_na_bar
+	g_na_bar = 4.2e2 -- S/m^2
+	g_na_ranvier = 5.0e5 -- S/m^2
 else
 	na_slope = 0.005
-	g_na_bar = 0.03
-	g_na_ranvier = 1666.67 * g_na_bar
+	g_na_bar = 3.0e2
+	g_na_ranvier = 5.0e5 -- S/m^2
 end
 
 if model_cell > 1 then
 	ka_factor=1.3
 	g_kap_bar = ka_factor*0.1
 	g_kad_bar = g_kap_bar
-else then 
+else
 	g_kap_bar = 0.1
 	g_kad_bar = g_kap_bar
 end
@@ -352,7 +352,7 @@ function distance_dep_d(x, y, z, si)
 	then xdist = dlimit
 	end
 	if xdist >= dprox then return g_kad_bar*(1+xdist*dslope)
-	else then return g_kap_bar*(1+xdist*dslope)
+	else return g_kap_bar*(1+xdist*dslope)
 	end
 end
 
