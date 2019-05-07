@@ -113,8 +113,8 @@ leak:set_rev_pot(-0.0546)
 CE:add(leak)
 
 -- electrode stimulation
-CE:set_influx_subset(4, 1.5, 0.006, 0.0) -- dend_inj1: 1.5 A/(m^2*s)
-CE:set_influx_subset(5, 1.5, 0.006, 0.0) -- dend_inj1: 1.5 A/(m^2*s)
+CE:set_influx_subset("dend_inj1", 1.5, 0.006, 0.0) -- dend_inj1: 1.5 A/(m^2*s)
+CE:set_influx_subset("dend_inj2", 1.5, 0.006, 0.0) -- dend_inj2: 1.5 A/(m^2*s)
 
 
 -- create domain discretization

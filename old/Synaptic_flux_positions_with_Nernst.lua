@@ -59,11 +59,8 @@ current = 0
 --status = NETIHandler:synapse_at_location(x, y, z, time)
 --common:printfn("Synapse at location (%d, %d, %d) at time (%d)? %s", x, y, z, time, tostring(status))
 
--- get the NeuronalTopologyImporter Plugin Geometry Importer Provider
-gip = NeuronalTopologyImporterProvider()
-
 -- get the default Geometry Importer
-gi = gip:getDefaultNeuronalTopologyImporter()
+neti = NeuronalTopologyImporter()
 
 -- setup joining criteria
 joiningCriteria = {
@@ -75,11 +72,11 @@ joiningCriteria = {
 }
 
 for _, v in pairs(joiningCriteria) do
-   gi:add_joining_criteria(v)
+   neti:add_joining_criteria(v)
 end
 
 -- import the geometry and generate the grid with the importer for hoc/swc files
-import_status = gi:import_geometry(file, ""), "GeometryImport"
+import_status = neti:import_geometry(file, ""), "GeometryImport"
 common:printfn("Status: %s", tostring(import_status))
 
 dt = util.GetParamNumber("-dt", 1e-5)	-- in units of s

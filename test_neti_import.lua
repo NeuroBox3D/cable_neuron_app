@@ -16,14 +16,10 @@ baseName = util.GetParam("-name", "grids/test/test_network")
 
 -- create geometry only on proc 0	
 if ProcRank() == 0 then
-	-- get a geometry importer provider
-	gip = NeuronalTopologyImporterProvider()
-	
-	-- get the default geometry importer
-	gi = gip:getDefaultNeuronalTopologyImporter()
-	
 	-- import (saved to baseName_secs.ugx)
-	gi:import_txt(baseName.."_secs.txt", baseName.."_connex.txt", baseName.."_synapses.txt", baseName.."_identifier.txt")
+	neti = NeuronalTopologyImporter()
+	neti:set_scaling_factors(1e-6, 1e-3, 1e-3, 1e-6)  -- length, time, potential, conductance
+	neti:import_geometry_and_generate_grid(baseName, "txt")
 end
 
 -- wait until geometry is created

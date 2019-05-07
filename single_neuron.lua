@@ -197,7 +197,7 @@ approxSpace:init_surfaces();
 approxSpace:init_top_surface();
 approxSpace:print_layout_statistic()
 approxSpace:print_statistic()
-OrderCuthillMcKee(approxSpace, true);
+OrderCuthillMcKee(approxSpace, true)
 
 
 -- cable equation

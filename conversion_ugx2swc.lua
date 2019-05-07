@@ -7,7 +7,7 @@ ug_load_script("ug_util.lua")
 ugxName = util.GetParam("-grid", "testNetwork_splitSyn.ugx")
 
 InitUG(3, AlgebraType("CPU", 1));
-dom1d = util.CreateDomain(ugxName, 0, neededSubsets1d)
+dom1d = util.CreateDomain(ugxName, 0)
 
 nid = innermost_neuron_id_in_subset("SOMA__L5A_PYRAMIDAL", dom1d:subset_handler())
 ind = util.GetParamNumber("-ni", nid)
