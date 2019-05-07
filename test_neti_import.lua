@@ -310,6 +310,11 @@ balancer.PrintParameters()
 loadBalancer = balancer.CreateLoadBalancer(dom)
 if loadBalancer ~= nil then
 	loadBalancer:enable_vertical_interface_creation(bVertIntf)
+	cdgm = ClusteredDualGraphManager1d()
+	cnu = CableNeuronUnificator()
+    cdgm:add_unificator(cnu)
+	balancer.defaultPartitioner:set_dual_graph_manager(cdgm)
+	
 	balancer.RefineAndRebalanceDomain(dom, numRefs, loadBalancer)
 
 	print("Edge cut on base level: "..balancer.defaultPartitioner:edge_cut_on_lvl(0))
