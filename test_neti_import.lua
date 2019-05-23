@@ -6,7 +6,7 @@
 
 ug_load_script("ug_util.lua")
 
-AssertPluginsLoaded({"cable_neuron", "NeuronalTopologyImporter", "Parmetis"})
+AssertPluginsLoaded({"cable_neuron", "Parmetis"})
 if NumProcs() > 1 then
 	AssertPluginsLoaded({"Parmetis"})
 end
