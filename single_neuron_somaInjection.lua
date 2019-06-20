@@ -1,5 +1,5 @@
 --------------------------------------------------------------
--- This script solves the cable equation with HH channels, 	--
+-- This script solves the cable equation with HH channels 	--
 -- on a pyramidal cell with an injection electrode at the   --
 -- soma.                                                    --
 -- The potential at a specified point is written to file.   --
