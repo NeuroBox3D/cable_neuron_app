@@ -1,45 +1,40 @@
-------------------------------------------------------
--- This script is intended for testing purposes.	--
--- It solves the cable equation with HH channels,	--
--- activating synapses and transmission synapses.	--
-------------------------------------------------------
-
-exit("This script is not going to work -- parameter and unknown units of"..
-	 " implicit and explicit cable discretizations do not match!")
-
--- for profiler output
-SetOutputProfileStats(false)
-
+-------------------------------------------------------------
+-- This script solves the cable equation with HH channels. --
+-- The model is fully implicit on the axon, where the HH   --
+-- channels are located. Activation through current        --
+-- injection at the soma.                                  --
+--                                                         --
+-- author: mbreit                                          --
+-- date:   2019-06-15                                      --
+-------------------------------------------------------------
 ug_load_script("ug_util.lua")
 
 -- choice of grid
 gridName = util.GetParam("-grid", "grids/31o_pyramidal19aFI.CNG_diams.ugx")
 
--- dimension
-dim = 3
-
 -- init UG
-InitUG(dim, AlgebraType("CPU", 1));
-AssertPluginsLoaded({"SynapseHandler","HH_Kabelnew"})
+InitUG(3, AlgebraType("CPU", 1))
+AssertPluginsLoaded({"cable_neuron"})
+
 
 -- parameters steering simulation
-numPreRefs	= util.GetParamNumber("-numPreRefs",	0)
-numRefs		= util.GetParamNumber("-numRefs",		0)
-dt			= util.GetParamNumber("-dt",			0.01) -- in ms
-endTime		= util.GetParamNumber("-endTime",		100.0) -- in ms
-nSteps 		= util.GetParamNumber("-nSteps",		endTime/dt)
+numPreRefs = util.GetParamNumber("-numPreRefs", 0)
+numRefs = util.GetParamNumber("-numRefs", 0)
+dt = util.GetParamNumber("-dt", 1e-5)  -- in s
+endTime = util.GetParamNumber("-endTime", 0.1)  -- in s
+nSteps = util.GetParamNumber("-nSteps", endTime/dt)
 
 -- vtk output?
-generateVTKoutput	= util.HasParamOption("-vtk")
+generateVTKoutput = util.HasParamOption("-vtk")
 
 -- file handling
-fileName = util.GetParam("-outName", "Solvung")
+fileName = util.GetParam("-outName", "solution")
 fileName = fileName.."/"
 
 
---------------------------
--- biological settings	--
---------------------------
+-------------------------
+-- biological settings --
+-------------------------
 -- membrane conductances
 g_Na = 1.2e3		-- in S/m^2
 g_K  = 360.0		-- in S/m^2
@@ -51,31 +46,28 @@ spec_cap = 1.0e-2	-- in F/m^2
 -- resistivity
 spec_res = 1.0		-- in Ohm m
 
--- diameter
-diameter = 2.0e-7	-- in m
-
 -- reversal potentials
-ena = 0.05			-- in V
-ek  = -0.077		-- in V
+e_na = 0.050		-- in V
+e_k = -0.077		-- in V
+e_l = -0.0544       -- in V
 
 -- diffusion coefficients
 diff_k 	= 1.0e-9	-- in m^2/s
 diff_na	= 1.0e-9	-- in m^2/s
 diff_ca	= 2.2e-10	-- in m^2/s
 
-----------------------------------
--- setup approximation space	--
-----------------------------------
+-- equilibrium potential
+v_eq = -0.065       -- in V
+
+-------------------------------
+-- setup approximation space --
+-------------------------------
 
 -- Create, Load, Refine and Distribute Domain
 neededSubsets = {"axon", "dend", "soma"}
 dom = util.CreateAndDistributeDomain(gridName, numRefs, numPreRefs, neededSubsets, "metis")
 
---print("Saving parallel grid layout")
---SaveParallelGridLayout(dom:grid(), "parallel_grid_layout_p"..ProcRank()..".ugx", 1e-5)
-
 -- create Approximation Space
---print("Create ApproximationSpace needs to be somewhere else")
 approxSpace = ApproximationSpace(dom)
 approxSpace:add_fct("v", "Lagrange", 1)
 approxSpace:add_fct("h", "Lagrange", 1)
@@ -86,69 +78,59 @@ approxSpace:add_fct("k", "Lagrange", 1)
 approxSpace:add_fct("ca", "Lagrange", 1)
 
 -- gating functions for HH-Fluxes
-approxSpace:init_levels();
-approxSpace:init_surfaces();
-approxSpace:init_top_surface();
+approxSpace:init_levels()
+approxSpace:init_surfaces()
+approxSpace:init_top_surface()
 approxSpace:print_layout_statistic()
 approxSpace:print_statistic()
-OrderCuthillMcKee(approxSpace, true);
+OrderCuthillMcKee(approxSpace, true)
 
 ----------------------
--- setup elem discs	--
+-- setup elem discs --
 ----------------------
-InfluxPlacex = 6.9e-06 -- in m
-InfluxPlacey = 3.74e-05 -- in m
-InfluxPlacez = -2.86e-05
-flux_ac = 1e-5
-InfluxValue = 1e-14
+influxCoordsx = 0.0 -- in m
+influxCoordsy = 0.0 -- in m
+influxCoordsz = 0.0
+injectionDensity = 5.0  -- in A/m^2
 
 function injection3d(t, x, y, z)
-	--print("x: "..x.."y: "..y.."z: "..z.." time: "..time)
-	if  t >= 0
-		and t <= 20
-		and math.abs(x - InfluxPlacex) < flux_ac
-		and math.abs(y - InfluxPlacey) < flux_ac
-		and math.abs(z - InfluxPlacez) < flux_ac
+	if t >= 0 and t <= 0.001
+		and math.abs(x - influxCoordsx) < 1e-8
+		and math.abs(y - influxCoordsy) < 1e-8
+		and math.abs(z - influxCoordsz) < 1e-8
 	then
-	--print("flux is done")
-	return InfluxValue
-	else
-	return 0.0
+		return injectionDensity
 	end
+	return 0.0
 end
 
 injection_flux = LuaFunctionNumber()
-injection_flux:set_lua_callback("injection"..dim.."d", (1+dim))
+injection_flux:set_lua_callback("injection3d", 4)
 
-HH = ElemDiscHH_Nernst_FV1(approxSpace,"v, h, m, n, na, k", "axon")
+HH = ImplicitActiveCableDiscNernst("v, h, m, n, k, na", "axon")
 HH:set_injection(injection_flux)
-HH:set_diameter(diameter)
-HH:set_spec_capa(spec_cap)
+HH:set_spec_cap(spec_cap)
 HH:set_spec_res(spec_res)
-HH:set_consts(g_Na, g_K, g_L)
-HH:set_accuracy(1e-6)
-HH:set_nernst_consts(8.3136, 310.0, 96485.0)
-HH:set_diff_Na(diff_na)
-HH:set_diff_K(diff_k)
+HH:set_conductances(g_K, g_Na, g_L)
+HH:set_diffusion_constants(diff_k, diff_na)
+HH:set_rev_pot(e_k, e_na, e_l)
 
-CE = CableEquation("dend, soma")
---CE:set_diameter(diameter)
+CE = CableEquation("dend, soma", true)
 
 diri = DirichletBoundary()
 diri:add(0.0, "h", "dend, soma")
 diri:add(0.0, "n", "dend, soma")
 diri:add(0.0, "m", "dend, soma")
-diri:add(0.0, "ca", "axon")
+diri:add(5e-5, "ca", "axon")
 
--------------------------------------------
---  Setup Domain Discretization
--------------------------------------------
 
+---------------------------------
+-- setup domain discretization --
+---------------------------------
 domainDisc = DomainDiscretization(approxSpace)
 domainDisc:add(CE)
 domainDisc:add(HH)
 domainDisc:add(diri)
-
 
 -- time discretization
 timeDisc = ThetaTimeStep(domainDisc)
@@ -165,22 +147,6 @@ op:init()
 -- debug writer
 dbgWriter = GridFunctionDebugWriter(approxSpace)
 dbgWriter:set_vtk_output(true)
-
-
--- GMG --
-gmg = GeometricMultiGrid(approxSpace)
-gmg:set_discretization(domainDisc)
-
-gmg:set_base_solver(LU())
-gmg:set_gathered_base_solver_if_ambiguous(true)
-
-gmg:set_smoother(ILU())
-gmg:set_cycle_type(1)
-gmg:set_num_presmooth(3)
-gmg:set_num_postsmooth(3)
-
---gmg:set_debug(dbgWriter)
-
 
 convCheckL = CompositeConvCheck(approxSpace, 2000, 1e-30, 1e-1)
 convCheckL:set_component_check("v", 1e-30, 1e-04)
@@ -216,63 +182,36 @@ time = 0.0
 -- init solution
 u = GridFunction(approxSpace)
 u:set(0.0)
--------------------------------------
---Setting all Startvalues
--------------------------------------
 
 -- set initial value
 print("Interpolation start values")
 
 -- set initial values for Na and K
-StartValue = -65.0
-Interpolate(10, u, "na", time)
-Interpolate(140.0, u, "k", time)
+Interpolate(12, u, "na", time)
+Interpolate(155.0, u, "k", time)
 Interpolate(5e-5, u, "ca", time)
-Interpolate(StartValue, u, "v", time)
+Interpolate(v_eq, u, "v", time)
 
--- Startvalues independent from VM
-AlphaHn_test = (math.exp(1-0.1*(StartValue+65))-1);
-if (math.abs(AlphaHn_test) > 1e-5) then
-	AlphaHn = (0.1-0.01*(StartValue+65))/(math.exp(1-0.1*(StartValue+65))-1)
-	else
-	AlphaHn = 0.1
-end
---print("StartAlphaHn: ".. AlphaHn)
-BetaHn = 0.125*math.exp(-(StartValue+65)/80);
+AlphaHh = 70.0*math.exp((-(v_eq+0.065))/0.020)
+BetaHh = 1e3/(math.exp(-100.0*(v_eq+0.035)) + 1.0)
+h_eq = AlphaHh/(AlphaHh+BetaHh)
+Interpolate(h_eq, u, "h", time)
 
-AlphaHm_test = math.exp(2.5-0.1*(StartValue+65))-1.0;
-if (math.abs(AlphaHm_test) > 1e-5) then
-	AlphaHm = (2.5 - 0.1*(StartValue+65)) / AlphaHm_test;
-else
-	AlphaHm = 1.0;
-end
---AlphaHm = (2.5 - 0.1*(StartValue+65))/(math.exp(2.5-0.1*(StartValue+65))-1);
-BetaHm = 4.0*math.exp(-(StartValue+65)/18);
+AlphaHm = -1e5*(v_eq+0.040)/(math.exp(-100.0*(v_eq+0.040)) - 1.0)
+BetaHm = 4e3*math.exp(-(v_eq+0.065)/0.018)
+m_eq = AlphaHm/(AlphaHm+BetaHm)
+Interpolate(m_eq, u, "m", time)
 
-AlphaHh = 0.07*math.exp((-1*(StartValue+65))/20);
-BetaHh = 1/(math.exp(3-0.1*(StartValue+65))+1);
-
--- initialisiert H-Werte auf Startwert
-h = AlphaHh/(AlphaHh+BetaHh);
-startValueh = ConstUserNumber(0.596113)--(0.596113)--(h)--
-Interpolate(h, u, "h", time)
-
--- initialisiert M-Werte auf Startwert
-m = AlphaHm/(AlphaHm+BetaHm);
-startValuem = ConstUserNumber(0.0529348)--(0.0529354)--(m/10)
-Interpolate(m, u, "m", time)
-
--- initialisiert N-Werte auf Startwert
-n = AlphaHn/(AlphaHn+BetaHn);
-startValuen = ConstUserNumber(0.317681)--(0.31768)--(n)
-Interpolate(n, u, "n", time)
-
+AlphaHn = -1e4*(v_eq+0.055)/(math.exp(-100.0*(v_eq+0.055)) - 1.0)
+BetaHn = 125.0*math.exp(-(v_eq+0.065)/0.080)
+n_eq = AlphaHn/(AlphaHn+BetaHn)
+Interpolate(n_eq, u, "n", time)
 
 
 -- write start solution
-if (generateVTKoutput) then 
+if generateVTKoutput then 
 	out = VTKOutput()
-	out:print(fileName .."vtk/Solvung", u, 0, time)
+	out:print(fileName .."vtk/solution", u, 0, time)
 end
 
 -- store grid function in vector of  old solutions
@@ -292,8 +231,8 @@ for step = 1,nSteps do
 	-- apply Newton solver
 	if newtonSolver:apply(u) == false then
 		print ("Newton solver apply failed at step "..step..".");
-		if (generateVTKoutput) then 
-			out:write_time_pvd(fileName .."vtk/Solvung", u);
+		if generateVTKoutput then 
+			out:write_time_pvd(fileName .."vtk/solution", u);
 		end
 		exit();
 	end 
@@ -302,8 +241,8 @@ for step = 1,nSteps do
 	time = solTimeSeries:time(0) + dt
 	
 	-- vtk output
-	if (generateVTKoutput) then 
-		out:print(fileName .."vtk/Solvung", u, step, time)
+	if generateVTKoutput then 
+		out:print(fileName .."vtk/solution", u, step, time)
 	end
 	
 	
@@ -316,7 +255,7 @@ for step = 1,nSteps do
 end
 
 -- end timeseries, produce gathering file
-if (generateVTKoutput) then
-	out:write_time_pvd(fileName .."vtk/Solvung", u)
+if generateVTKoutput then
+	out:write_time_pvd(fileName .."vtk/solution", u)
 end
 
