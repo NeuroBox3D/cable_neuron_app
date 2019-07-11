@@ -230,11 +230,11 @@ for step = 1,nSteps do
 		
 	-- apply Newton solver
 	if newtonSolver:apply(u) == false then
-		print ("Newton solver apply failed at step "..step..".");
+		print ("Newton solver apply failed at step "..step..".")
 		if generateVTKoutput then 
-			out:write_time_pvd(fileName .."vtk/solution", u);
+			out:write_time_pvd(fileName .."vtk/solution", u)
 		end
-		exit();
+		exit()
 	end 
 	
 	-- update to new time
@@ -251,7 +251,7 @@ for step = 1,nSteps do
 	VecScaleAssign(oldestSol, 1.0, u)
 	solTimeSeries:push_discard_oldest(oldestSol, time)
 
-	print("++++++ POINT IN TIME " .. math.floor((time)/dt+0.5)*dt .. "  END ++++++");
+	print("++++++ POINT IN TIME " .. math.floor((time)/dt+0.5)*dt .. "  END ++++++")
 end
 
 -- end timeseries, produce gathering file
