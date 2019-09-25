@@ -6,7 +6,10 @@
 -- It is intended to be used in a parallel setup:           --
 -- Each core will then produce its own results (embarrassing--
 -- parallelism); a global histogram file for the number of  --
--- evoked APs will be created afterwards.
+-- evoked APs will be created afterwards.                   --
+--                                                          --
+--  Author:  mbreit                                         --
+--  Date:    2015-09-07                                     --
 --------------------------------------------------------------
 
 -- for profiler output
@@ -72,7 +75,7 @@ verbose	= util.HasParamOption("-verbose")
 generateVTKoutput	= util.HasParamOption("-vtk")
 
 -- file handling
-filename = util.GetParam("-outName", "sol_new_clearance_1e-3")
+filename = util.GetParam("-outName", ".")
 filename = filename.."/"
 
 --------------------------------------------------------------------------------

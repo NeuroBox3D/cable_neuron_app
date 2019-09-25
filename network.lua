@@ -4,19 +4,22 @@
 -- It (re-)configures the primary alpha synapses inserted into the grid by NeuGen  --
 -- to a custom activation pattern. Simulation includes membrane potential and,     --
 -- optionally, K, Na, Ca as well. Biological parameters are due to T. Branco.      --
+--                                                                                 --
+--  Author:  mbreit                                                                --
+--  Date:    2015-05-13                                                            --
 -------------------------------------------------------------------------------------
 
 ug_load_script("ug_util.lua")
 ug_load_script("util/load_balancing_util.lua")
 
 -- choice of grid
-gridName = util.GetParam("-grid", "testNetwork.ugx")
+gridName = util.GetParam("-grid", "cable_neuron_app/grids/testNetwork.ugx")
 
 -- dimension
 dim = 3
 
 -- init UG
-InitUG(dim, AlgebraType("CPU", 1));
+InitUG(dim, AlgebraType("CPU", 1))
 AssertPluginsLoaded({"cable_neuron"})
 
 -- parameters steering simulation

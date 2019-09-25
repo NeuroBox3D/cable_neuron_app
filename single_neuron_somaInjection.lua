@@ -1,25 +1,24 @@
---------------------------------------------------------------
--- This script solves the cable equation with HH channels 	--
--- on a pyramidal cell with an injection electrode at the   --
--- soma.                                                    --
--- The potential at a specified point is written to file.   --
---                                                          --
--- author: mbreit                                           --
--- date:   2019-05-17                                       --
---------------------------------------------------------------
+--------------------------------------------------------------------------------
+-- This script solves the cable equation with HH channels on a pyramidal cell --
+-- without axon with an injection electrode at the soma.                      --
+-- The potential at a specified point is written to file.                     --
+--                                                                            --
+-- Author: Markus Breit                                                       --
+-- Date:   2019-05-17                                                         --
+--------------------------------------------------------------------------------
 
 ug_load_script("ug_util.lua")
 AssertPluginsLoaded({"cable_neuron"})
 
 -- init UG
-InitUG(3, AlgebraType("CPU", 1));
+InitUG(3, AlgebraType("CPU", 1))
 
 
 ---------------------------------
 -- read command line arguments --
 ---------------------------------
 -- choice of grid
-gridName = util.GetParam("-grid", "rat1.ugx")
+gridName = util.GetParam("-grid", "cable_neuron_app/grids/rat1.ugx")
 
 -- parameters steering simulation
 numRefs = util.GetParamNumber("-numRefs", 0)
@@ -69,7 +68,7 @@ e_ca = 0.14
 
 -- equilibrium concentrations (in units of mM)
 -- comment: these concentrations will not yield Nernst potentials
--- as given above; pumps will have to be introduced to achieve this
+-- as given above pumps will have to be introduced to achieve this
 -- in the case where Nernst potentials are calculated from concentrations!
 k_out  = 4.0
 na_out = 150.0
@@ -101,12 +100,12 @@ dom = util.CreateDomain(gridName, numRefs, requiredSubsets)
 approxSpace = ApproximationSpace(dom)
 approxSpace:add_fct("v", "Lagrange", 1)
 
-approxSpace:init_levels();
-approxSpace:init_surfaces();
-approxSpace:init_top_surface();
+approxSpace:init_levels()
+approxSpace:init_surfaces()
+approxSpace:init_top_surface()
 approxSpace:print_layout_statistic()
 approxSpace:print_statistic()
-OrderCuthillMcKee(approxSpace, true);
+OrderCuthillMcKee(approxSpace, true)
 
 
 --------------------
@@ -246,7 +245,7 @@ while endTime-time > 0.001*curr_dt do
 	
 	-- increase time step if cfl > curr_dt / dtred (and if time is aligned with new bigger step size)
 	while curr_dt*dtred < cfl and lv > 0 and cb_counter[lv] % (dtred) == 0 do
-		curr_dt = curr_dt*dtred;
+		curr_dt = curr_dt*dtred
 		lv = lv - 1
 		cb_counter[lv] = cb_counter[lv] + cb_counter[lv+1]/dtred
 		cb_counter[lv+1] = 0
@@ -269,7 +268,7 @@ while endTime-time > 0.001*curr_dt do
 	-- apply linear solver
 	ilu:set_disable_preprocessing(matrixIsConst)
 	if ApplyLinearSolver(linOp, u, b, linSolver) == false then
-		print("Could not apply linear solver.");
+		print("Could not apply linear solver.")
 		if (generateVTKoutput) then 
 			out:write_time_pvd(outputPath.."vtk/solution", u) 
 		end

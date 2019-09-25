@@ -1,7 +1,13 @@
---------------------------------------------------------------
--- This script solves the cable equation with HH channels, 	--
--- activating synapses and transmission synapses.			--
---------------------------------------------------------------
+--------------------------------------------------------------------------------
+-- This script solves the cable equation with HH channels and leakage.        --
+-- Activation is realized by randomly distributed synapses.                   --
+-- Additionally, K+, Na+ and Ca2+ dynamics are simulated using diffusion for  --
+-- all ion species and including Na+/K+ pumps, VDCCs, PMCA and NCX pumps and  --
+-- ion-specific leakages.                                                     --
+--                                                                            --
+-- Authors: Markus Breit, Pascal Gottmann                                     --
+-- Date:    2015-09-10                                                        --
+--------------------------------------------------------------------------------
 
 -- for profiler output
 SetOutputProfileStats(false)
@@ -19,7 +25,7 @@ InitUG(3, AlgebraType("CPU", 1))
 -- read command line arguments --
 ---------------------------------
 -- choice of grid
-gridName = util.GetParam("-grid", "rat1.ugx")
+gridName = util.GetParam("-grid", "cable_neuron_app/grids/13-L3pyr-77.CNG.ugx")
 gridSyn  = string.sub(gridName, 1, string.len(gridName)-4) .. "_syn.ugx"
 
 -- parameters steering simulation
@@ -30,11 +36,11 @@ nSteps = util.GetParamNumber("-nSteps", endTime/dt)
 pstep = util.GetParamNumber("-pstep", dt, "plotting interval")
 
 -- synapse activity parameters
-avg_start = util.GetParamNumber("-avgStart", 0.03)
+avg_start = util.GetParamNumber("-avgStart", 0.003)
 avg_dur = util.GetParamNumber("-avgDur", 2.4e-4)
-dev_start = util.GetParamNumber("-devStart", 0.015)
+dev_start = util.GetParamNumber("-devStart", 0.001)
 dev_dur = util.GetParamNumber("-devDur", 0.0)
-num_synapses = util.GetParamNumber("-nSyn", 140)
+num_synapses = util.GetParamNumber("-nSyn", 750)
 
 -- specify "-verbose" to output linear solver convergence
 verbose	= util.HasParamOption("-verbose")
@@ -43,8 +49,8 @@ verbose	= util.HasParamOption("-verbose")
 generateVTKoutput = util.HasParamOption("-vtk")
 
 -- file handling
-filename = util.GetParam("-outName", "solution")
-filename = filename.."/"
+outPath = util.GetParam("-outName", "solution")
+outPath = outPath.."/"
 
 
 --------------------------
@@ -74,25 +80,23 @@ spec_res = 1.5
 -- reversal potentials (in units of V)
 e_k  = -0.09
 e_na = 0.06
-e_ca = 0.14
+e_ca = 0.1377547409
 
 -- equilibrium concentrations (in units of mM)
--- comment: these concentrations will not yield Nernst potentials
--- as given above; pumps will have to be introduced to achieve this
--- in the case where Nernst potentials are calculated from concentrations!
-k_out  = 4.0
-na_out = 150.0
+-- these concentrations will yield Nernst potentials as given above
+k_out = 4.8261178697
+na_out = 113.2925416647
 ca_out = 1.5
 
-k_in   = 140.0
-na_in  = 10.0
-ca_in  = 5e-5
+k_in = 140.0
+na_in = 12.0
+ca_in = 5e-5
 
 -- equilibrium potential (in units of V)
 v_eq = -0.07
 
 -- diffusion coefficients (in units of m^2/s)
-diff_k 	= 1.0e-9
+diff_k = 1.0e-9
 diff_na	= 1.0e-9
 diff_ca	= 2.2e-10
 
@@ -106,15 +110,43 @@ temp = 37.0
 -- synapse distribution
 synDistr = SynapseDistributor(gridName)
 synDistr:clear() -- clear any synapses from grid
-synDistr:place_synapses({0.0, 0.5, 0.5}, num_synapses, "AlphaPostSynapse")
+
+-- place half of the synapses on subets 1 and 2 ("dendrite" and "apical_dendrite") each
+synDistr:place_synapses({0.0, 0.0, 0.5, 0.5}, num_synapses, "AlphaPostSynapse")
 if not synDistr:export_grid(gridSyn) then
 	print("SynapseDistributor grid export unsuccessful. Aborting.")
 	exit()
 end
 
 gridName = gridSyn
-requiredSubsets = {"soma", "dend", "apic"}
-dom = util.CreateDomain(gridName, numRefs, requiredSubsets)
+
+
+-- collect functional subset groups
+-- this has to be adapted according to the geometry used
+somaSubsets = {"soma"}
+dendSubsets = {"dendrite", "apical_dendrite"}
+axonSubsets = {"axon"}
+
+
+allSubsets = {}
+allSubsetsString = ""
+for _, v in pairs(somaSubsets) do
+    table.insert(allSubsets, v)
+    allSubsetsString = allSubsetsString .. ", " .. v
+end
+for _, v in pairs(dendSubsets) do
+    table.insert(allSubsets, v)
+    allSubsetsString = allSubsetsString .. ", " .. v
+end
+for _, v in pairs(axonSubsets) do
+    table.insert(allSubsets, v)
+    allSubsetsString = allSubsetsString .. ", " .. v
+end
+if allSubsetsString:len() > 2 then
+	allSubsetsString = allSubsetsString:sub(3)
+end
+
+dom = util.CreateDomain(gridName, numRefs, allSubsets)
 
 -- check domain is acyclic
 isAcyclic = is_acyclic(dom)
@@ -130,18 +162,18 @@ approxSpace:add_fct("k", "Lagrange", 1)
 approxSpace:add_fct("na", "Lagrange", 1)
 approxSpace:add_fct("ca", "Lagrange", 1)
 
-approxSpace:init_levels();
-approxSpace:init_surfaces();
-approxSpace:init_top_surface();
+approxSpace:init_levels()
+approxSpace:init_surfaces()
+approxSpace:init_top_surface()
 approxSpace:print_statistic()
-OrderCuthillMcKee(approxSpace, true);
+OrderCuthillMcKee(approxSpace, true)
 
 
 --------------------
 -- discretization --
 --------------------
 -- cable equation
-CE = CableEquation("soma, dend, apic", true)
+CE = CableEquation(allSubsetsString, true)
 
 CE:set_spec_cap(spec_cap)
 CE:set_spec_res(spec_res)
@@ -158,35 +190,37 @@ CE:set_diff_coeffs({diff_k, diff_na, diff_ca})
 
 CE:set_temperature_celsius(temp)
 
-ss_dend = "dend, apic"
 
 -- Hodgkin and Huxley channels
-HH = ChannelHH("v", "soma, dend, apic")
-HH:set_conductances(g_k_so, g_na_so, "soma")
-HH:set_conductances(g_k_de, g_na_de, ss_dend)
+HH = ChannelHHNernst("v", allSubsetsString)
+if #axonSubsets > 0 then HH:set_conductances(g_k_ax, g_na_ax, axonSubsets) end
+if #somaSubsets > 0 then HH:set_conductances(g_k_so, g_na_so, somaSubsets) end
+if #dendSubsets > 0 then HH:set_conductances(g_k_de, g_na_de, dendSubsets) end
 
 CE:add(HH)
 
 -- leakage (exactly calibrated to achieve zero net current in equilibrium)
 tmp_fct = math.pow(2.3,(temp-23.0)/10.0)
 
-leak = ChannelLeak("v", "soma, dend, apic")
-leak:set_cond(g_l_so*tmp_fct, "soma")
-leak:set_rev_pot(-0.0592363968739, "soma")
-leak:set_cond(g_l_de*tmp_fct, ss_dend)
-leak:set_rev_pot(-0.0679474583084, ss_dend)
+leak = ChannelLeak("v", allSubsetsString)
+if #axonSubsets > 0 then leak:set_cond(g_l_ax*tmp_fct, axonSubsets) end
+if #axonSubsets > 0 then leak:set_rev_pot(-0.070212, axonSubsets) end
+if #somaSubsets > 0 then leak:set_cond(g_l_so*tmp_fct, somaSubsets) end
+if #somaSubsets > 0 then leak:set_rev_pot(-0.059236, somaSubsets) end
+if #dendSubsets > 0 then leak:set_cond(g_l_de*tmp_fct, dendSubsets) end
+if #dendSubsets > 0 then leak:set_rev_pot(-0.067947, dendSubsets) end
 
 CE:add(leak)
 
 
 -- Calcium dynamics
-vdcc = VDCC_BG_cable("ca", "soma, dend, apic")
-ncx = NCX_cable("ca", "soma, dend, apic")
-pmca = PMCA_cable("ca", "soma, dend, apic")
-caLeak = IonLeakage("ca", "soma, dend, apic")
+vdcc = VDCC_BG_cable("ca", allSubsetsString)
+ncx = NCX_cable("ca", allSubsetsString)
+pmca = PMCA_cable("ca", allSubsetsString)
+caLeak = IonLeakage("ca", allSubsetsString)
 leakCaConst = -3.4836065573770491e-9 +	-- single pump PMCA flux density (mol/s/m^2)
-			  -1.0135135135135137e-9 +	-- single pump NCX flux (mol/s/m^2)
-			  3.3017662162505882e-11
+			  -1.0135135135135137e-9 +	-- single pump NCX flux density (mol/s/m^2)
+			  1.04077e-11               -- single channel VDCC flux density (mol/s/m^2)
 caLeak:set_perm(leakCaConst, ca_in, ca_out, v_eq, 2)
 
 CE:add(ncx)
@@ -194,40 +228,51 @@ CE:add(pmca)
 CE:add(vdcc)
 CE:add(caLeak)
 
---[[
--- Na-K pump
-nak_ax = Na_K_Pump("", "axon")
-nak_ax:set_max_flux(2.6481515257588432)	-- mol/(m^2*s)
-nak_so = Na_K_Pump("", "soma")
-nak_so:set_max_flux(6.05974e-7/4.57658e-06)	-- mol/(m^2*s)
-nak_de = Na_K_Pump("", dendSubsets)
-nak_de:set_max_flux(1.61593e-8/4.57658e-06)	-- mol/(m^2*s)
 
-CE:add(nak_ax)
-CE:add(nak_so)
-CE:add(nak_de)
+-- Na-K pump -- balances K+ efflux from HH (on soma and dendrites)
+--              and Na+ influx from HH (on axons)
+tmp = 1.0 / (1.0 + 5.74/na_in * (1.0 + k_in/1.37))
+tmp = tmp*tmp*tmp
+if #axonSubsets > 0 then
+	nak_ax = Na_K_Pump({}, axonSubsets)
+	nak_ax:set_max_flux(1.0/tmp*2.36256413e-06) -- HH (mol/s/m^2)
+	CE:add(nak_ax)
+end
+if #somaSubsets > 0 then
+	nak_so = Na_K_Pump({}, somaSubsets)
+	nak_so:set_max_flux(1.5/tmp*4.76155879e-07) -- HH (mol/s/m^2)
+	CE:add(nak_so)
+end
+if #dendSubsets > 0 then
+	nak_de = Na_K_Pump({}, dendSubsets)
+	nak_de:set_max_flux(1.5/tmp*7.1423434e-08) -- HH (mol/s/m^2)
+	CE:add(nak_de)
+end
 
 
--- ion leakage
-kLeak_ax = IonLeakage("k", "axon")
-leakKConst_ax = 0.0000040675975261062531 +	-- HH (mol/s/m^2)
-				-0.00000010983795579882983	-- Na/K (mol/s/m^2)
-kLeak_ax:set_perm(leakKConst_ax, k_in, k_out, v_eq, 1)
-kLeak_so = IonLeakage("k", "soma")
-leakKConst_so = 2.0338e-06 +				-- HH (mol/s/m^2)
-				-(2.0/3.0 * 6.05974e-7)		-- Na/K (mol/s/m^2)
-kLeak_so:set_perm(leakKConst_so, k_in, k_out, v_eq, 1)
-kLeak_de = IonLeakage("k", "soma")
-leakKConst_de = 3.0507e-7 +					-- HH (mol/s/m^2)
-				-(2.0/3.0 * 1.61593e-8)		-- Na/K (mol/s/m^2)
-kLeak_de:set_perm(leakKConst_de, k_in, k_out, v_eq, 1)
-
--- TODO: What about Na!?
-
-CE:add(kLeak_ax)
-CE:add(kLeak_so)
-CE:add(kLeak_de)
---]]
+-- ion leakage -- balances Na+ influx from HH and efflux from Na+/K+ pumps (on soma and dendrites)
+--                and K+ efflux from HH and influx from Na+/K+ pumps (on axons)
+if #axonSubsets > 0 then
+	kLeak_ax = IonLeakage({"k"}, axonSubsets)
+	leakKConst_ax = -9.52312795e-07 + -- HH (mol/s/m^2)
+					1.57504e-06       -- Na/K (mol/s/m^2)
+	kLeak_ax:set_perm(leakKConst_ax, k_in, k_out, v_eq, 1)
+	CE:add(kLeak_ax)
+end
+if #somaSubsets > 0 then
+	naLeak_so = IonLeakage({"na"}, somaSubsets)
+	leakNaConst_so = 1.18128206e-07 + -- HH (mol/s/m^2)
+					 -7.14234e-07     -- Na/K (mol/s/m^2)
+	naLeak_so:set_perm(leakNaConst_so, na_in, na_out, v_eq, 1)
+	CE:add(naLeak_so)
+end
+if #dendSubsets > 0 then
+	naLeak_de = IonLeakage({"na"}, dendSubsets)
+	leakNaConst_de = 3.150086e-09 +   -- HH (mol/s/m^2)
+					 -1.07135e-07     -- Na/K (mol/s/m^2)
+	naLeak_de:set_perm(leakNaConst_de, na_in, na_out, v_eq, 1)
+	CE:add(naLeak_de)
+end
 
 
 -- synapses
@@ -240,20 +285,6 @@ syn_handler:set_activation_timing_alpha(
 	dev_dur/6.0, -- deviation of tau in [s]
 	1.2e-09)      -- peak conductivity in [S]
 CE:set_synapse_handler(syn_handler)
-
-
---[[
--- electrode stimulation
--- 5nA seem to enervate the pyramidal cell with uniform diameters of 1um
--- (coords for 13-L3pyr-77.CNG.ugx, current given in C/ms)
-CE:set_influx(5e-9, 6.54e-05, 2.665e-05, 3.985e-05, 0.0, 0.04)			-- near soma
-CE:set_influx(5e-9, 3.955e-06, 1.095e-06, -3.365e-06, 0.001, 0.0025)		-- 1st edge soma to dend
-CE:set_influx(0.3e-9, 3.955e-06, 1.095e-06, -3.365e-06, 0.0, 0.03)		-- 1st 1st edge soma to dend
-CE:set_influx(0.095e-9, 0.0, 0.0, 0.0, 0.1, 0.1)							-- soma center vertex
-CE:set_influx(0.2e-9, 0.0, 0.0, 0.0, 0.005, 0.0005)						-- soma center vertex
-CE:set_influx(10.0e-9, 0.000139, 0.00020809, -2.037e-05, 0.005, 0.005)	-- distal apical dendrite vertex v1
-CE:set_influx(10.0e-9, -3.96e-06, 0.0002173, -5.431e-05, 0.005, 0.005)	-- distal apical dendrite vertex v2
---]]
 
 
 -- create domain discretization
@@ -309,15 +340,14 @@ Interpolate(ca_in, u, "ca")
 -- write start solution
 if generateVTKoutput then 
 	out = VTKOutput()
-	out:print(filename.."vtk/solution", u, 0, time)
+	out:print(outPath.."vtk/solution", u, 0, time)
 end
 
 
 --[[
 -- measurement setup
-measFileVm = filename.."measVm.txt"
-measFileCa = filename.."measCa.txt"
-
+measFileVm = outPath.."measVm.txt"
+measFileCa = outPath.."measCa.txt"
 if ProcRank() == 0 then
 	measOutVm = assert(io.open(measFileVm, "a"))
 	measOutCa = assert(io.open(measFileCa, "a"))
@@ -393,16 +423,16 @@ while endTime-time > 0.001*curr_dt do
 	end
 	
 	--[[
-	-- log time and vm in Soma
+	-- log Vm and Ca
 	if ProcRank() == 0 then
 		vm_soma  = EvaluateAtClosestVertex(MakeVec(6.9e-07, 3.74e-06, -2.86e-06), 		u, "v", "soma", 		dom:subset_handler())
-		vm_axon  = EvaluateAtClosestVertex(MakeVec(-4.05e-06, 6.736e-05, -1.341e-05), 	u, "v", "axon", 		dom:subset_handler())
+		vm_apic  = EvaluateAtClosestVertex(MakeVec(-4.05e-06, 6.736e-05, -1.341e-05), 	u, "v", "apical_dendrite", 		dom:subset_handler())
 		vm_dend  = EvaluateAtClosestVertex(MakeVec(-4.631e-05, -0.0001252, 4.62e-06), 	u, "v", "dendrite", 	dom:subset_handler())
-		measOutVm:write(time, "\t", vm_soma, "\t", vm_axon, "\t", vm_dend, "\t", -65, "\n")
+		measOutVm:write(time, "\t", vm_soma, "\t", vm_apic, "\t", vm_dend, "\n")
 		ca_soma  = EvaluateAtClosestVertex(MakeVec(6.9e-07, 3.74e-06, -2.86e-06), 		u, "ca", "soma", 		dom:subset_handler())
-		ca_axon  = EvaluateAtClosestVertex(MakeVec(-4.05e-06, 6.736e-05, -1.341e-05), 	u, "ca", "axon", 		dom:subset_handler())
+		ca_apic  = EvaluateAtClosestVertex(MakeVec(-4.05e-06, 6.736e-05, -1.341e-05), 	u, "ca", "apical_dendrite", 		dom:subset_handler())
 		ca_dend  = EvaluateAtClosestVertex(MakeVec(-4.631e-05, -0.0001252, 4.62e-06), 	u, "ca", "dendrite", 	dom:subset_handler())
-		measOutCa:write(time, "\t", ca_soma, "\t", ca_axon, "\t", ca_dend, "\t", -65, "\n")
+		measOutCa:write(time, "\t", ca_soma, "\t", ca_apic, "\t", ca_dend, "\n")
 	end
 	--]]
 	
@@ -410,9 +440,9 @@ while endTime-time > 0.001*curr_dt do
 	time = solTimeSeries:time(0) + curr_dt
 	
 	-- vtk output
-	if (generateVTKoutput) then
+	if generateVTKoutput then
 		if math.abs(time/pstep - math.floor(time/pstep+0.5)) < 1e-5 then 
-			out:print(filename.."vtk/solution", u, math.floor(time/pstep+0.5), time)
+			out:print(outPath.."vtk/solution", u, math.floor(time/pstep+0.5), time)
 		end
 	end
 	
@@ -429,7 +459,7 @@ end
 
 -- end timeseries, produce gathering file
 if generateVTKoutput then 
-	out:write_time_pvd(filename.."vtk/solution", u) 
+	out:write_time_pvd(outPath.."vtk/solution", u) 
 end
 
 --[[
@@ -439,5 +469,4 @@ if ProcRank() == 0 then
 	measOutCa:close()
 end
 --]]
-
 	

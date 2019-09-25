@@ -17,7 +17,7 @@ InitUG(3, AlgebraType("CPU", 1));
 -- read command line arguments --
 ---------------------------------
 -- choice of grid
-gridName = util.GetParam("-grid", "rat1.ugx")
+gridName = util.GetParam("-grid", "cable_neuron_app/grids/vlachos_mouse_cell1.ugx")
 
 -- cell model
 cellModel = util.GetParamNumber("-cellModel", 0)

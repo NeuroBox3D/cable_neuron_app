@@ -10,7 +10,7 @@
 ug_load_script("ug_util.lua")
 
 -- choice of grid
-gridName = util.GetParam("-grid", "grids/31o_pyramidal19aFI.CNG_diams.ugx")
+gridName = util.GetParam("-grid", "cable_neuron_app/grids/31o_pyramidal19aFI.CNG_diams.ugx")
 
 -- init UG
 InitUG(3, AlgebraType("CPU", 1))

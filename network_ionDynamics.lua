@@ -6,13 +6,16 @@
 -- K, Na, Ca as well. The ions dynamics include ion-specific channels              --
 -- and pumps as well as leakage to ensure ion-wise equilibria.                     --
 -- Biological parameters are due to T. Branco.                                     --
+--                                                                                 --
+--  Author:  mbreit                                                                --
+--  Date:    2015-05-13                                                            --
 -------------------------------------------------------------------------------------
 
 ug_load_script("ug_util.lua")
 ug_load_script("util/load_balancing_util.lua")
 
 -- choice of grid
-gridName = util.GetParam("-grid", "testNetwork.ugx")
+gridName = util.GetParam("-grid", "cable_neuron_app/grids/testNetwork.ugx")
 
 -- dimension
 dim = 3

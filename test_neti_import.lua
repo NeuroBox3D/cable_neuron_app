@@ -1,8 +1,11 @@
---------------------------------------------------------------------------------------
--- This script is part uf the Jenkins ug-test build!                                --
--- It will create a .ugx file from a small NeuGen-generated neural network	        --
--- and will then perform a cable simulation on it.                                  --
---------------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+-- This script is part uf the Jenkins ug-test build!                          --
+-- It will create a .ugx file from a small NeuGen-generated neural network	  --
+-- and will then perform a cable simulation on it.                            --
+--                                                                            --
+--  Author:  mbreit                                                           --
+--  Date:    2016-02-19                                                       --
+--------------------------------------------------------------------------------
 
 ug_load_script("ug_util.lua")
 

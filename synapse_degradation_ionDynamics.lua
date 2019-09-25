@@ -1,20 +1,22 @@
---------------------------------------------------------------
--- This script solves the cable equation with HH channels, 	--
--- activating synapses and transmission synapses.			--
---------------------------------------------------------------
-
--- for profiler output
-SetOutputProfileStats(false)
-
+--------------------------------------------------------------------------------
+-- This script is intended to examine the effect of synapse loss on single    --
+-- cell electrical and calcium signals.                                       --
+-- It solves the cable equation on a single cell including Hodgkin-Huxley-    --
+-- type K+ and Na+ channels, leakage fluxes and a Na+/K+ pump.                --
+-- Calcium dynamics are unbuffered and involve transport through the plasma   --
+-- membrane through VDCCs, PMCA and NCX pumps as well as a leakage.           --
+-- Activation is realized through alpha-type synapses that are randomly       --
+-- distributed across the dendrites of the cell. A percentage of these        --
+-- synapses can be removed prior to the simulation.                           --
+--                                                                            --
+-- Authors: Markus Breit, Martin Stepniewski                                  --
+-- Date:    2015-09-10                                                        --
+--------------------------------------------------------------------------------
 ug_load_script("ug_util.lua")
 ug_load_script("util/load_balancing_util.lua")
 
-
--- dimension
-dim = 3
-
 -- init UG
-InitUG(dim, AlgebraType("CPU", 1));
+InitUG(3, AlgebraType("CPU", 1))
 AssertPluginsLoaded({"cable_neuron"})
 
 
@@ -43,33 +45,33 @@ else
 end
 
 -- parameters steering simulation
-numRefs		= util.GetParamNumber("-numRefs",		0)
-dt			= util.GetParamNumber("-dt",			1e-5) -- in s
-endTime		= util.GetParamNumber("-endTime",	  	dt)
-nSteps 		= util.GetParamNumber("-nSteps",		endTime/dt)
-pstep		= util.GetParamNumber("-pstep",			dt,		"plotting interval")
+numRefs = util.GetParamNumber("-numRefs", 0)
+dt = util.GetParamNumber("-dt", 1e-5) -- in s
+endTime = util.GetParamNumber("-endTime", 1.0)  -- in s
+nSteps = util.GetParamNumber("-nSteps", endTime/dt)
+pstep = util.GetParamNumber("-pstep", dt, "plotting interval")
 
--- Synapse activity parameters
-avg_start = util.GetParamNumber("-avgStart"	,  0.03)
-avg_dur = util.GetParamNumber(	"-avgDur"	,  2.4e-4)
-dev_start = util.GetParamNumber("-devStart"	,  0.015)
-dev_dur = util.GetParamNumber(	"-devDur"	,  0.0)
+-- synapse activity parameters
+avg_start = util.GetParamNumber("-avgStart", 0.01)
+avg_dur = util.GetParamNumber("-avgDur", 2.4e-3)
+dev_start = util.GetParamNumber("-devStart", 0.003)
+dev_dur = util.GetParamNumber("-devDur", 0.0)
 num_synapses = util.GetParamNumber("-nSyn", 140)
 
 -- specify "-verbose" to output linear solver convergence
 verbose	= util.HasParamOption("-verbose")
 
 -- vtk output?
-generateVTKoutput	= util.HasParamOption("-vtk")
+generateVTKoutput = util.HasParamOption("-vtk")
 
 -- file handling
-filename = util.GetParam("-outName", "solution")
-filename = filename.."/"
+outPath = util.GetParam("-outName", "solution")
+outPath = outPath.."/"
 
 --------------------------------------------------------------------------------
 -- Synapse distributions via plugin by Lukas Reinhardt
 --------------------------------------------------------------------------------
---[[
+---[[
 synDistr = SynapseDistributor(gridName)
 synDistr:clear() -- clear any synapses from grid
 synDistr:place_synapses(distro, num_synapses, "AlphaPostSynapse")
@@ -82,9 +84,9 @@ gridName = gridSyn
 --------------------------------------------------------------------------------
 -- Synapse degeneration
 --------------------------------------------------------------------------------
---[[
-deg_factor = util.GetParamNumber("-degFac", 0.5)
-deg_factor = deg_factor + 0.5/num_synapses -- rounding instead of floor-ing
+---[[
+deg_factor = util.GetParamNumber("-degFac", 0.0)
+deg_factor = deg_factor --+ 0.5/num_synapses -- rounding instead of floor-ing
 
 synDistr = SynapseDistributor(gridName)
 --synDistr:print_status()
@@ -100,16 +102,6 @@ synDistr:export_grid(gridDeg)
 gridName = gridDeg
 --]]
 
---------------------------------------------------------------
--- File i/o setup for sample calcium concentration measurement
--------------------------------------------------------------- 
-measFileVm = filename.."measVm.txt"
-measFileCa = filename.."measCa.txt"
-
-if ProcRank() == 0 then
-	measOutVm = assert(io.open(measFileVm, "a"))
-	measOutCa = assert(io.open(measFileCa, "a"))
-end
 
 --------------------------
 -- biological settings	--
@@ -138,18 +130,16 @@ spec_res = 1.5
 -- reversal potentials (in units of V)
 e_k  = -0.09
 e_na = 0.06
-e_ca = 0.14
+e_ca = 0.1377547409
 
 -- equilibrium concentrations (in units of mM)
--- comment: these concentrations will not yield Nernst potentials
--- as given above; pumps will have to be introduced to achieve this
--- in the case where Nernst potentials are calculated from concentrations!
-k_out  = 4.0
-na_out = 150.0
+-- these concentrations will yield Nernst potentials as given above
+k_out = 4.8261178697
+na_out = 113.2925416647
 ca_out = 1.5
 
 k_in   = 140.0
-na_in  = 10.0
+na_in  = 12.0
 ca_in  = 5e-5
 
 -- equilibrium potential (in units of V)
@@ -186,12 +176,12 @@ approxSpace:add_fct("k", "Lagrange", 1)
 approxSpace:add_fct("na", "Lagrange", 1)
 approxSpace:add_fct("ca", "Lagrange", 1)
 
-approxSpace:init_levels();
-approxSpace:init_surfaces();
-approxSpace:init_top_surface();
+approxSpace:init_levels()
+approxSpace:init_surfaces()
+approxSpace:init_top_surface()
 approxSpace:print_layout_statistic()
 approxSpace:print_statistic()
-OrderCuthillMcKee(approxSpace, true);
+OrderCuthillMcKee(approxSpace, true)
 
 
 -- cable equation
@@ -227,11 +217,11 @@ tmp_fct = math.pow(2.3,(temp-23.0)/10.0)
 
 leak = ChannelLeak("v", "axon, soma, " .. dendSubsets)
 leak:set_cond(g_l_ax*tmp_fct, "axon")
-leak:set_rev_pot(-0.066210342630746467, "axon")
+leak:set_rev_pot(-0.06614845186, "axon") -- -0.066210342630746467, "axon")
 leak:set_cond(g_l_so*tmp_fct, "soma")
-leak:set_rev_pot(-0.022074360525636, "soma")
+leak:set_rev_pot(-0.03065400447, "soma") -- -0.022074360525636, "soma")
 leak:set_cond(g_l_de*tmp_fct, dendSubsets)
-leak:set_rev_pot(-0.056314322586687, dendSubsets)
+leak:set_rev_pot(-0.0578036208, dendSubsets) -- -0.056314322586687, dendSubsets)
 
 CE:add(leak)
 
@@ -252,38 +242,42 @@ CE:add(vdcc)
 CE:add(caLeak)
 
 
--- Na-K pump
+-- Na-K pump -- balances K+ efflux from HH (on soma and dendrites)
+--              and Na+ influx from HH (on axons)
+tmp = 1.0 / (1.0 + 5.74/na_in * (1.0 + k_in/1.37))
+tmp = tmp*tmp*tmp
 nak_ax = Na_K_Pump("", "axon")
-nak_ax:set_max_flux(2.6481515257588432)	-- mol/(m^2*s)
+nak_ax:set_max_flux(1.0/tmp*1.102782816e-05) -- HH (mol/s/m^2)
 nak_so = Na_K_Pump("", "soma")
-nak_so:set_max_flux(6.05974e-7/4.57658e-06)	-- mol/(m^2*s)
+nak_so:set_max_flux(1.5/tmp*1.69383842e-06) -- HH (mol/s/m^2)
 nak_de = Na_K_Pump("", dendSubsets)
-nak_de:set_max_flux(1.61593e-8/4.57658e-06)	-- mol/(m^2*s)
+nak_de:set_max_flux(1.5/tmp*2.54075763e-07) -- HH (mol/s/m^2)
 
 CE:add(nak_ax)
 CE:add(nak_so)
 CE:add(nak_de)
 
 
--- ion leakage
-kLeak_ax = IonLeakage("k", "axon")
-leakKConst_ax = 0.0000040675975261062531 +	-- HH (mol/s/m^2)
-				-0.00000010983795579882983	-- Na/K (mol/s/m^2)
-kLeak_ax:set_perm(leakKConst_ax, k_in, k_out, v_eq, 1)
-kLeak_so = IonLeakage("k", "soma")
-leakKConst_so = 2.0338e-06 +				-- HH (mol/s/m^2)
-				-(2.0/3.0 * 6.05974e-7)		-- Na/K (mol/s/m^2)
-kLeak_so:set_perm(leakKConst_so, k_in, k_out, v_eq, 1)
-kLeak_de = IonLeakage("k", "soma")
-leakKConst_de = 3.0507e-7 +					-- HH (mol/s/m^2)
-				-(2.0/3.0 * 1.61593e-8)		-- Na/K (mol/s/m^2)
-kLeak_de:set_perm(leakKConst_de, k_in, k_out, v_eq, 1)
 
--- TODO: What about Na!?
+-- ion leakage -- balances Na+ influx from HH and efflux from Na+/K+ pumps (on soma and dendrites)
+--                and K+ efflux from HH and influx from Na+/K+ pumps (on axons)
+kLeak_ax = IonLeakage("k", "axon")
+leakKConst_ax = -3.387676841e-06 +  -- HH (mol/s/m^2)
+				7.35189e-06	 -- Na/K (mol/s/m^2)
+kLeak_ax:set_perm(leakKConst_ax, k_in, k_out, v_eq, 1)
+
+naLeak_so = IonLeakage("na", "soma")
+leakNaConst_so = 5.51393481e-07 +  -- HH (mol/s/m^2)
+				-2.54076e-06  -- Na/K (mol/s/m^2)
+naLeak_so:set_perm(leakNaConst_so, na_in, na_out, v_eq, 1)
+naLeak_de = IonLeakage("na", dendSubsets)
+leakNaConst_de = 1.470384e-08 +  -- HH (mol/s/m^2)
+				-3.81114e-07  -- Na/K (mol/s/m^2)
+naLeak_de:set_perm(leakNaConst_de, na_in, na_out, v_eq, 1)
 
 CE:add(kLeak_ax)
-CE:add(kLeak_so)
-CE:add(kLeak_de)
+CE:add(naLeak_so)
+CE:add(naLeak_de)
 
 
 -- synapses
@@ -355,15 +349,22 @@ u = GridFunction(approxSpace)
 b = GridFunction(approxSpace)
 u:set(0.0)
 Interpolate(v_eq, u, "v")
-Interpolate(k_in, u, "k");
-Interpolate(na_in, u, "na");
+Interpolate(k_in, u, "k")
+Interpolate(na_in, u, "na")
 Interpolate(ca_in, u, "ca")
 
+-- file i/o setup for sample calcium concentration measurement
+measFileVm = outPath.."measVm.txt"
+measFileCa = outPath.."measCa.txt"
+if ProcRank() == 0 then
+	measOutVm = assert(io.open(measFileVm, "a"))
+	measOutCa = assert(io.open(measFileCa, "a"))
+end
 
 -- write start solution
 if generateVTKoutput then 
 	out = VTKOutput()
-	out:print(filename.."vtk/solution", u, 0, time)
+	out:print(outPath.."vtk/solution", u, 0, time)
 end
 
 -- store grid function in vector of  old solutions
@@ -404,7 +405,7 @@ while endTime-time > 0.001*curr_dt do
 	
 	-- increase time step if cfl > curr_dt / dtred (and if time is aligned with new bigger step size)
 	while curr_dt*dtred < cfl and lv > 0 and cb_counter[lv] % (dtred) == 0 do
-		curr_dt = curr_dt*dtred;
+		curr_dt = curr_dt*dtred
 		lv = lv - 1
 		cb_counter[lv] = cb_counter[lv] + cb_counter[lv+1]/dtred
 		cb_counter[lv+1] = 0
@@ -463,9 +464,9 @@ while endTime-time > 0.001*curr_dt do
 	time = solTimeSeries:time(0) + curr_dt
 	
 	-- vtk output
-	if (generateVTKoutput) then
+	if generateVTKoutput then
 		if math.abs(time/pstep - math.floor(time/pstep+0.5)) < 1e-5 then 
-			out:print(filename.."vtk/solution", u, math.floor(time/pstep+0.5), time)
+			out:print(outPath.."vtk/solution", u, math.floor(time/pstep+0.5), time)
 		end
 	end
 	
@@ -481,8 +482,8 @@ while endTime-time > 0.001*curr_dt do
 end
 
 -- end timeseries, produce gathering file
-if (generateVTKoutput) then 
-	out:write_time_pvd(filename.."vtk/solution", u) 
+if generateVTKoutput then 
+	out:write_time_pvd(outPath.."vtk/solution", u) 
 end
 
 -- close measure file
