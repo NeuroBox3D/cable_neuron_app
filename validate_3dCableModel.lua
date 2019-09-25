@@ -1,12 +1,11 @@
---------------------------------------------------------------
--- This script is supposed to serve as reference to compare --
--- a full 3d simulation against (for debugging purposes).   --
--- It solves the cable equation with HH channels and two    --
--- electrodes.			                                    --
---                                                          --
--- author: mbreit                                           --
--- date:   2017-10-28                                       --
---------------------------------------------------------------
+--------------------------------------------------------------------------------
+-- This script is supposed to serve as reference to compare a full 3d         --
+-- simulation against (for debugging purposes).                               --
+-- It solves the cable equation with HH channels and two electrodes.          --
+--                                                                            --
+-- Author: Markus Breit                                                       --
+-- Date:   2017-10-28                                                         --
+--------------------------------------------------------------------------------
 
 ug_load_script("ug_util.lua")
 

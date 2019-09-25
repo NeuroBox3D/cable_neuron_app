@@ -1,16 +1,15 @@
---------------------------------------------------------------
--- This script solves the cable equation with HH channels, 	--
--- activating randomly (uniformly) distributed alpha        --
--- synapses with randomly (normally) distributed activation --
--- patterns on a L3 pyramidal cell.                         --
--- It is intended to be used in a parallel setup:           --
--- Each core will then produce its own results (embarrassing--
--- parallelism); a global histogram file for the number of  --
--- evoked APs will be created afterwards.                   --
---                                                          --
---  Author:  mbreit                                         --
---  Date:    2015-09-07                                     --
---------------------------------------------------------------
+--------------------------------------------------------------------------------
+-- This script solves the cable equation with HH channels, activating         --
+-- randomly (uniformly) distributed alpha synapses with randomly (normally)   --
+-- distributed activation patterns on a L3 pyramidal cell.                    --
+-- It is intended to be used in a parallel setup:                             --
+-- Each core will then produce its own results (embarrassing parallelism);    --
+-- a global histogram file for the number of evoked APs will be created       --
+-- afterwards.                                                                --
+--                                                                            --
+-- Author:  Markus Breit                                                      --
+-- Date:    2015-09-07                                                        --
+--------------------------------------------------------------------------------
 
 -- for profiler output
 SetOutputProfileStats(false)

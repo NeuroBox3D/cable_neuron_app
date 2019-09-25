@@ -1,18 +1,19 @@
--------------------------------------------------------------------------------------
--- This script solves the cable equation on network morphologies created by NeuGen --
--- and converted to ugx by NETI.                                                   --
--- It (re-)configures the primary alpha synapses inserted into the grid by NeuGen  --
--- to a custom activation pattern. Simulation includes membrane potential and,     --
--- optionally, K, Na, Ca as well. Biological parameters are due to T. Branco.      --
--- This script can be used to output activity stats and synapse statistics.        --
---                                                                                 --
--- THIS SCRIPT IS NOT FUNCTIONAL AT THE MOMENT !                                   --
--- Note: The output of network stats is not possible at the moment;                --
---       the latest SynapseHandler class does not yet support it.                  --
---                                                                                 --
---  Author:  mbreit                                                                --
---  Date:    2015-09-07                                                            --
--------------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+-- This script solves the cable equation on network morphologies created by   --
+-- NeuGen and converted to ugx by NETI.                                       --
+-- It (re-)configures the primary alpha synapses inserted into the grid by    --
+-- NeuGen to a custom activation pattern.                                     --
+-- Simulation includes membrane potential and, optionally, K, Na, Ca as well. --
+-- Biological parameters are due to T. Branco.                                --
+-- This script can be used to output activity stats and synapse statistics.   --
+--                                                                            --
+-- THIS SCRIPT IS NOT FUNCTIONAL AT THE MOMENT !                              --
+-- Note: The output of network stats is not possible at the moment;           --
+--       the latest SynapseHandler class does not yet support it.             --
+--                                                                            --
+-- Author:  Markus Breit                                                      --
+-- Date:    2015-09-07                                                        --
+--------------------------------------------------------------------------------
 
 ug_load_script("ug_util.lua")
 ug_load_script("util/load_balancing_util.lua")

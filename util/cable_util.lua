@@ -1,6 +1,14 @@
-------------------------------------------------------------------
--- This file contains utilities for cable equation simulations. --
-------------------------------------------------------------------
+--------------------------------------------------------------------------------
+-- This file contains utilities for cable equation simulations.               --
+-- The functionality was used in the supplementary material for the           --
+-- publication:                                                               --
+-- Breit et al.: "Anatomically detailed and large-scale simulations studying  --
+--                synapse loss and synchrony using NeuroBox",                 --
+-- Front. Neuroanat. (2016)                                                   --
+--                                                                            --
+-- Author: Markus Breit                                                       --
+-- Date:   2016-01-08                                                         --
+--------------------------------------------------------------------------------
 ug_load_script("ug_util.lua")
 ug_load_script("util/load_balancing_util.lua")
 
@@ -14,8 +22,8 @@ function setup_problem_ug4(
 	-- check mandatory args
 	if gridName == nil then print("No grid name given to setup routine. Aborting."); exit(); end
 	if cableDisc == nil then
-		print("No cable equation discretization object given to setup routine. Aborting.");
-		exit();
+		print("No cable equation discretization object given to setup routine. Aborting.")
+		exit()
 	end
 	
 	-- check optional args

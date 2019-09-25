@@ -3,7 +3,7 @@
 -- It will create a .ugx file from a small NeuGen-generated neural network	  --
 -- and will then perform a cable simulation on it.                            --
 --                                                                            --
---  Author:  mbreit                                                           --
+--  Author:  Markus Breit                                                     --
 --  Date:    2016-02-19                                                       --
 --------------------------------------------------------------------------------
 

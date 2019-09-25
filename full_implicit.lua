@@ -1,12 +1,11 @@
--------------------------------------------------------------
--- This script solves the cable equation with HH channels. --
--- The model is fully implicit on the axon, where the HH   --
--- channels are located. Activation through current        --
--- injection at the soma.                                  --
---                                                         --
--- author: mbreit                                          --
--- date:   2019-06-15                                      --
--------------------------------------------------------------
+--------------------------------------------------------------------------------
+-- This script solves the cable equation with HH channels.                    --
+-- The model is fully implicit on the axon, where the HH channels are         --
+-- located. Activation through current injection at the soma.                 --
+--                                                                            --
+-- Author: Markus Breit                                                       --
+-- Date:   2019-06-15                                                         --
+--------------------------------------------------------------------------------
 ug_load_script("ug_util.lua")
 
 -- choice of grid

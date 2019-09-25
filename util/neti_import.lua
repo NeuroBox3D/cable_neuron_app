@@ -1,13 +1,13 @@
---------------------------------------------------------------
--- This script will create a .ugx file from various other   --
--- neuronal file formats, namely:                           --
---   - SWC                                                  --
---   - HOC (might not be fully supported)                   --
---   - TXT, NGX (as exported from NeuGen)                   --
---                                                          --
---  Author:  mbreit                                         --
---  Date:    2015-09-07                                     --
---------------------------------------------------------------
+--------------------------------------------------------------------------------
+-- This script will create a .ugx file from various other neuronal file       --
+-- formats, namely:                                                           --
+--   - SWC                                                                    --
+--   - HOC (might not be fully supported)                                     --
+--   - TXT, NGX (as exported from NeuGen)                                     --
+--                                                                            --
+-- Author: Markus Breit                                                       --
+-- Date:   2015-09-07                                                         --
+--------------------------------------------------------------------------------
 
 ug_load_script("ug_util.lua")
 

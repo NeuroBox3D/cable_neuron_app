@@ -1,15 +1,15 @@
--------------------------------------------------------------------------------------
--- This script solves the cable equation on network morphologies created by NeuGen --
--- and converted to ugx by NETI.                                                   --
--- It (re-)configures the primary alpha synapses inserted into the grid by NeuGen  --
--- to a custom activation pattern. Simulation includes membrane potential,         --
--- K, Na, Ca as well. The ions dynamics include ion-specific channels              --
--- and pumps as well as leakage to ensure ion-wise equilibria.                     --
--- Biological parameters are due to T. Branco.                                     --
---                                                                                 --
---  Author:  mbreit                                                                --
---  Date:    2015-05-13                                                            --
--------------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+-- This script solves the cable equation on network morphologies created by   --
+-- NeuGen and converted to ugx by NETI.                                       --
+-- It (re-)configures the primary alpha synapses inserted into the grid by    --
+-- NeuGen to a custom activation pattern. Simulation includes membrane        --
+-- potential, K, Na, Ca as well. The ions dynamics include ion-specific       --
+-- channels and pumps as well as leakage to ensure ion-wise equilibria.       --
+-- Biological parameters are due to T. Branco.                                --
+--                                                                            --
+-- Author:  Markus Breit                                                      --
+-- Date:    2015-05-13                                                        --
+--------------------------------------------------------------------------------
 
 ug_load_script("ug_util.lua")
 ug_load_script("util/load_balancing_util.lua")

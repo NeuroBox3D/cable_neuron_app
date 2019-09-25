@@ -6,8 +6,8 @@
 -- Repairing this would require re-implementing the method                    --
 -- print_synapse_statistics() for the current SynapseHandler.                 --
 --                                                                            --
---  Author:  mbreit                                                           --
---  Date:    2019-01-16                                                       --
+-- Author:  Markus Breit                                                      --
+-- Date:    2019-01-16                                                        --
 --------------------------------------------------------------------------------
 
 ug_load_script("ug_util.lua")

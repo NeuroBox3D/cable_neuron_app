@@ -1,9 +1,9 @@
------------------------------------------------------------------------------
--- This script gives some information about synapses in neuronal networks. --
---                                                                         --
--- author: mbreit                                                          --
--- date:   15-04-2017                                                      --
------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+-- This script gives some information about synapses in neuronal networks.    --
+--                                                                            --
+-- Author: Markus Breit                                                       --
+-- Date:   2017-04-15                                                         --
+--------------------------------------------------------------------------------
 
 ug_load_script("ug_util.lua")
 

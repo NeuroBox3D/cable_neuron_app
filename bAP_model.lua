@@ -1,11 +1,11 @@
---------------------------------------------------------------
--- This script solves the cable equation with physiology    --
--- defined by the bAP model by Golding (2001)               --
--- The potential at a specified point is written to file.   --
---                                                          --
--- author: mbreit                                           --
--- date:   2019-06-13                                       --
---------------------------------------------------------------
+--------------------------------------------------------------------------------
+-- This script solves the cable equation with physiology defined by the bAP   --
+-- model by Golding (2001).                                                   --
+-- The potential at a specified point is written to file.                     --
+--                                                                            --
+-- Author: Markus Breit                                                       --
+-- Date:   2019-06-13                                                         --
+--------------------------------------------------------------------------------
 ug_load_script("ug_util.lua")
 AssertPluginsLoaded({"cable_neuron"})
 

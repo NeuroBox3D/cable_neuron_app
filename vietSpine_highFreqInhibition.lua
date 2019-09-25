@@ -1,10 +1,10 @@
---------------------------------------------------------------
--- This script solves the cable equation on a 1d version    --
--- of Viet's reconstructed spine (with extensions).         --
---                                                          --
--- author: mbreit                                           --
--- date:   2019-01-17                                       --
---------------------------------------------------------------
+--------------------------------------------------------------------------------
+-- This script solves the cable equation on a 1d version of Viet's            --
+-- reconstructed spine (with extensions).                                     --
+--                                                                            --
+-- Author: Markus Breit                                                       --
+-- Date:   2019-01-17                                                         --
+--------------------------------------------------------------------------------
 ug_load_script("ug_util.lua")
 
 -- init UG

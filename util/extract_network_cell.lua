@@ -4,8 +4,8 @@
 -- The cell is then exported as separate SWC file, retaining all diameter,    --
 -- but losing all synapse information.                                        --
 --                                                                            --
---  Author:  mbreit                                                           --
---  Date:    2017-03-25                                                       --
+-- Author:  Markus Breit                                                      --
+-- Date:    2017-03-25                                                        --
 --------------------------------------------------------------------------------
 
 ug_load_script("ug_util.lua")

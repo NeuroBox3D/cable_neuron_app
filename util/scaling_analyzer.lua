@@ -1,7 +1,3 @@
--- scaling analyzer
--- created by Sebastian Reiter
--- s.b.reiter@googlemail.com
-
 --[[!
 \file scaling_analyzer.lua
 \brief lua script to compare profiling outputs from different runs of one problem
@@ -21,6 +17,8 @@ have the same name, then this script may give you unexpected results.
 
 If an input-file contains lines beginning with "#ANALYZER INFO:", the rest
 of each such line will be printed during parsing of the file.
+
+\author: Sebastian Reiter
 ]]--
 
 -- switch defining amount of output:
